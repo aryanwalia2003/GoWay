@@ -28,3 +28,4 @@ awb-gen
 *.prof
 *.pprof
 *.trace
+*.json

@@ -20,21 +20,10 @@ import (
 	"github.com/johnfercher/maroto/v2/pkg/props"
 )
 
-// estimatedLabelBytes is a conservative per-label PDF size estimate used to
-// pre-grow the internal buffer before rendering begins. Eliminates the first
-// several bytes.growSlice doublings that were showing up as the top memory
-// consumer (~79% of in-use heap) in the pprof heap profile.
-//
-// Derived from: 18.7 MB output / 5 000 labels ≈ 3.8 KB; rounded up to 5 KB
-// to leave headroom and still avoid realloc on the majority of labels.
+// estimatedLabelBytes is 5 KB (pre-allocated to avoid slice growth).
 const estimatedLabelBytes = 5 * 1024
 
-// GenerateLabel renders a single AWB record into a self-contained in-memory
-// PDF byte slice using the maroto v2 library.
-//
-// The returned slice is owned by the caller; the generator holds no reference
-// to it after returning. This method is NOT goroutine-safe — each goroutine
-// must own its own MarotoGenerator instance.
+// GenerateLabel renders a single AWB record into a self-contained PDF.
 func (g *MarotoGenerator) GenerateLabel(record awb.AWB) ([]byte, error) {
 	cfg := config.NewBuilder().
 		WithPageSize(pagesize.A6).
@@ -60,10 +49,7 @@ func (g *MarotoGenerator) GenerateLabel(record awb.AWB) ([]byte, error) {
 		return nil, err
 	}
 
-	// Pre-allocate the output buffer to the expected label size before asking
-	// maroto to serialise the document. This replaces the default zero-size
-	// allocation that caused repeated bytes.growSlice doublings during the
-	// 5 000-label benchmark run.
+	// Pre-allocate the output buffer for efficiency.
 	buf := make([]byte, 0, estimatedLabelBytes)
 
 	raw := doc.GetBytes()
@@ -72,12 +58,7 @@ func (g *MarotoGenerator) GenerateLabel(record awb.AWB) ([]byte, error) {
 	return buf, nil
 }
 
-// customFonts returns the []*entity.CustomFont slice that maroto v2's
-// config.Builder.WithCustomFonts() expects.
-//
-// Each entry embeds the raw TTF bytes directly — no file-system access at
-// runtime. Maroto copies the bytes internally during config.Build(), so the
-// generator's slice references are safe to discard immediately after.
+// customFonts returns the font weights required by the generator.
 func (g *MarotoGenerator) customFonts() []*entity.CustomFont {
 	return []*entity.CustomFont{
 		{
@@ -93,8 +74,7 @@ func (g *MarotoGenerator) customFonts() []*entity.CustomFont {
 	}
 }
 
-// addAllRows is the top-level layout function. It delegates to focused helpers
-// so the full layout is readable in one linear pass without method-dispatch noise.
+// addAllRows assembles the full AWB layout.
 func addAllRows(m core.Maroto, r awb.AWB, g *MarotoGenerator) {
 	addHeaderRows(m, r)
 	addAddressRows(m, r)

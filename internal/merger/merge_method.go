@@ -14,17 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// MergeToFile drains the results channel, restores original input order,
-// then writes the merged PDF directly to outPath using incremental chunk-based
-// merging. It never holds the full merged PDF in memory.
-//
-// Memory profile compared to the old Merge() → []byte approach:
-//
-//	Old: all 5 000 page PDFs in RAM + full merged PDF in bytes.Buffer → ~966 MB RSS
-//	New: ChunkSize page PDFs live at a time + pdfcpu merge is append-to-file → ~120-150 MB RSS
-//
-// Soft per-page errors are logged and skipped; the batch continues.
-// Returns a fatal error only when zero pages were successfully rendered.
+// MergeToFile writes the merged PDF directly to outPath using incremental chunk-based merging.
 func (m *OrderedMerger) MergeToFile(results <-chan pipeline.PageResult, outPath string) (int, error) {
 	collected := m.drain(results)
 
@@ -61,18 +51,7 @@ func (m *OrderedMerger) drain(results <-chan pipeline.PageResult) []pipeline.Pag
 	return out
 }
 
-// writeChunked merges collected pages into outPath in ChunkSize-page batches.
-//
-// Strategy:
-//  1. Open the final output file immediately.
-//  2. For each chunk of up to ChunkSize pages, call pdfcpu.MergeRaw with the
-//     output file as the io.Writer. The second chunk onwards passes append=true
-//     so pdfcpu appends pages to the already-written content.
-//  3. Nil out PDFBytes on each page after its chunk is written so the GC can
-//     reclaim that memory before the next chunk starts.
-//
-// Peak in-process heap is bounded to ~(ChunkSize × avg_page_size) regardless
-// of total label count.
+// writeChunked merges collected pages into outPath in ChunkSize-page batches to limit peak RSS.
 func (m *OrderedMerger) writeChunked(pages []pipeline.PageResult, outPath string) error {
 	out, err := os.Create(outPath)
 	if err != nil {

@@ -29,19 +29,11 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "awb-gen",
 	Short: "High-Performance Go AWB Label Generator",
-	Long: `awb-gen generates Air Waybill (AWB) PDFs from JSON input.
-
-It uses a lock-free SPSC pipeline: a single streaming JSON producer feeds
-N parallel label-rendering workers, whose output is merged in input order
-by a single consumer. No mutexes. No write contention. Minimal allocations.
-
-Memory is bounded by merging in chunks (--chunk-size) and capping concurrent
-PDF renderers (--workers). For 5 000 labels expect ~120-150 MB peak RSS.
-
+	Long: `awb-gen generates Air Waybill (AWB) PDFs from JSON input efficiently.
+		
 Examples:
   awb-gen --input data.json --output batch.pdf
-  cat data.json | awb-gen --stdin --output batch.pdf
-  awb-gen --input data.json --output batch.pdf --workers 8 --debug`,
+  cat data.json | awb-gen --stdin --output batch.pdf`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		logger.InitLogger(debug)
 		if pprofAddr != "" {
@@ -55,8 +47,7 @@ Examples:
 	SilenceUsage: true,
 }
 
-// Execute is the entry point called by main. It runs the root command and
-// exits with a non-zero status on any error.
+// Execute runs the root command.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		if logger.Log != nil {
@@ -69,9 +60,7 @@ func Execute() {
 	logger.Sync()
 }
 
-// run is the core execution function. It wires the input reader, starts the
-// SPSC pipeline, and passes the result channel directly to the merger which
-// writes the final PDF to disk without buffering the whole document in RAM.
+// run wires the input, starts the pipeline, and merges results.
 func run() error {
 	log := logger.Log
 	start := time.Now()
@@ -111,8 +100,7 @@ func run() error {
 		return fmt.Errorf("pipeline: %w", err)
 	}
 
-	// Merger writes directly to the output file — no []byte returned,
-	// no os.WriteFile call needed. Peak RSS is bounded to ~chunkSize pages.
+	// Merger writes directly to the output file.
 	mg := merger.NewOrderedMerger(log, cfg.MergeChunkSize)
 	count, err := mg.MergeToFile(results, output)
 	if err != nil {
@@ -129,8 +117,7 @@ func run() error {
 	return nil
 }
 
-// openInput returns a reader for the JSON input and a cleanup function the
-// caller must defer. Exactly one of --input or --stdin must be provided.
+// openInput returns a reader for the JSON input.
 func openInput() (io.Reader, func(), error) {
 	switch {
 	case useStdin && input != "":

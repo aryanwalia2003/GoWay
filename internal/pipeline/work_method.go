@@ -8,19 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// work is the body of each worker goroutine. It drains the jobs channel until
-// it is closed or ctx is cancelled, renders each AWB label via gen, and emits
-// the result to the results channel.
-//
-// Each worker owns its own gen instance — there is no shared mutable state
-// between workers. All channel operations are non-blocking via select to ensure
-// ctx cancellation is always honoured promptly.
-//
-// sem is a counting semaphore that limits simultaneous GenerateLabel calls to
-// cfg.MaxConcurrentPDF. Acquiring a slot before rendering and releasing it
-// immediately after bounds peak in-process heap on machines with many CPUs:
-// instead of NumCPU concurrent renderers each holding their own buffer, at
-// most MaxConcurrentPDF renderers are active simultaneously.
+// work is the body of each worker goroutine.
 func (p *Pipeline) work(
 	ctx context.Context,
 	jobs <-chan Job,
@@ -34,11 +22,10 @@ func (p *Pipeline) work(
 			return
 		case job, ok := <-jobs:
 			if !ok {
-				// jobs channel closed — all work is dispatched, exit cleanly
 				return
 			}
 
-			// Acquire semaphore slot before rendering.
+			// Acquire semaphore slot
 			select {
 			case <-ctx.Done():
 				return
@@ -47,8 +34,7 @@ func (p *Pipeline) work(
 
 			pdfBytes, err := gen.GenerateLabel(job.Record)
 
-			// Release semaphore slot immediately after rendering so other
-			// workers can proceed — do not hold it during channel send.
+			// Release semaphore slot
 			<-sem
 
 			if err != nil {
