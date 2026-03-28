@@ -6,4 +6,5 @@ import "go.uber.org/zap"
 // using pdfcpu. It runs in a single goroutine — zero write contention.
 type OrderedMerger struct {
 	log *zap.Logger
+	ChunkSize int
 }

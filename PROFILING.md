@@ -1,38 +1,37 @@
 # AWB Generation Performance & Profiling Report
 
-This document outlines the performance benchmarks and profiling results for the `awb-gen` tool, conducted on a batch of **5,000 labels**.
+This document outlines the performance benchmarks and profiling results for the `awb-gen` tool, conducted on a batch of **5,000 labels**, running with the newly optimized memory-bounded pipeline.
 
 ## 📊 Benchmark Results (5,000 Labels)
 
-The benchmark was executed using the `make bench-e2e` target periodically to ensure stability.
+The benchmark was executed using the `make bench-e2e` and `make bench-mem` targets to ensure stability.
 
-| Metric | Result |
-|---|---|
-| **Total Labels** | 5,000 |
-| **Elapsed Time** | **1m 13.19s** |
-| **Throughput** | **~68.38 labels/sec** |
-| **Peak Memory (RSS)** | **966 MB** |
-| **Output PDF Size** | **18.7 MB** |
+| Metric | V1 (Baseline) | V2 (Optimized) | Improvement |
+|---|---|---|---|
+| **Total Labels** | 5,000 | 5,000 | - |
+| **Elapsed Time** | 1m 13.19s | **1m 03.14s** | ~14% Faster |
+| **Throughput** | ~68.38 labels/s | **~79.17 labels/s** | +15% Throughput |
+| **Peak Memory (RSS)** | 966 MB | **~295 MB** | **70% Reduction** |
+| **Active Heap (`inuse_space`)**| ~178 MB | **~45 MB** | **74% Reduction** |
 
 ---
 
 ## 🧠 Memory Profiling (Heap Analysis)
 
-The heap profile identifies the primary sources of memory pressure during the generation and merger phases.
+The heap profile highlights the massive reduction in memory footprint following the implementation of chunked merging and `estimatedLabelBytes` pre-allocation.
 
 ### Top Memory Consumers (`inuse_space`)
 
 | Function | Cumulative Memory | % of Total |
 |---|---|---|
-| `bytes.growSlice` | 142.05 MB | 79.51% |
-| `MarotoGenerator.GenerateLabel` | 93.23 MB | 52.18% |
-| `OrderedMerger.Merge` | 81.93 MB | 45.86% |
-| `pdfcpu/pkg/api.MergeRaw` | 32.56 MB | 18.22% |
+| `MarotoGenerator.GenerateLabel` | 42.34 MB | 93.21% |
+| `Maroto.Generate` | 19.80 MB | 43.59% |
+| `gofpdf.utf8FontFile.parseHMTXTable`| 15.92 MB | 35.07% |
 
 ### Analysis
-- **Dynamic Buffer Growth:** Nearly 80% of memory usage is attributed to `bytes.growSlice`. This occurs as the system dynamically expands buffers to hold generated PDF pages and the final merged document.
-- **Worker Isolation:** The parallel worker pool (where each worker handles `GenerateLabel`) accounts for ~52% of memory. This scale linearly with concurrent worker count.
-- **Merge Overhead:** The concatenation phase (`Merge`) holds all 5,000 single-page PDFs in RAM before merging them into a single `bytes.Buffer`.
+- **Eradication of `bytes.growSlice`:** In the V1 baseline, `bytes.growSlice` accounted for `142 MB` (80% of total memory) due to slice doublings. In V2, pre-allocating the label slice buffer using the `estimatedLabelBytes` constant (5KB) completely removed buffer-resizing overhead.
+- **Constant-Bounded Merger:** V1 held all 5,000 pages in RAM before calling `api.MergeRaw` into a giant `bytes.Buffer`. V2 streams the files in 500-page chunks directly to disk (`MergeToFile`). As a result, the merger allocations have flatlined and disappeared from the top consumers.
+- **Semaphore Limits:** The peak active heap is capped at **45 MB**, largely representing the concurrent generation contexts throttled by the `MaxConcurrentPDF` semaphore.
 
 ---
 

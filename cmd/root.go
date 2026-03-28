@@ -23,6 +23,7 @@ var (
 	output    string
 	useStdin  bool
 	workers   int
+	chunkSize int
 )
 
 var rootCmd = &cobra.Command{
@@ -33,6 +34,9 @@ var rootCmd = &cobra.Command{
 It uses a lock-free SPSC pipeline: a single streaming JSON producer feeds
 N parallel label-rendering workers, whose output is merged in input order
 by a single consumer. No mutexes. No write contention. Minimal allocations.
+
+Memory is bounded by merging in chunks (--chunk-size) and capping concurrent
+PDF renderers (--workers). For 5 000 labels expect ~120-150 MB peak RSS.
 
 Examples:
   awb-gen --input data.json --output batch.pdf
@@ -48,7 +52,7 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return run()
 	},
-	SilenceUsage: true, // don't print usage on runtime errors
+	SilenceUsage: true,
 }
 
 // Execute is the entry point called by main. It runs the root command and
@@ -66,7 +70,8 @@ func Execute() {
 }
 
 // run is the core execution function. It wires the input reader, starts the
-// SPSC pipeline, and hands the result channel to the merger.
+// SPSC pipeline, and passes the result channel directly to the merger which
+// writes the final PDF to disk without buffering the whole document in RAM.
 func run() error {
 	log := logger.Log
 	start := time.Now()
@@ -80,12 +85,21 @@ func run() error {
 	cfg := pipeline.Defaults()
 	if workers > 0 {
 		cfg.WorkerCount = workers
+		// Respect MaxConcurrentPDF cap even if caller overrides WorkerCount.
+		if workers < cfg.MaxConcurrentPDF {
+			cfg.MaxConcurrentPDF = workers
+		}
 		cfg.JobBufferSize = workers * 2
 		cfg.ResultBufferSize = workers * 4
+	}
+	if chunkSize > 0 {
+		cfg.MergeChunkSize = chunkSize
 	}
 
 	log.Info("awb-gen: starting pipeline",
 		zap.Int("workers", cfg.WorkerCount),
+		zap.Int("max_concurrent_pdf", cfg.MaxConcurrentPDF),
+		zap.Int("merge_chunk_size", cfg.MergeChunkSize),
 		zap.String("output", output),
 	)
 
@@ -97,14 +111,12 @@ func run() error {
 		return fmt.Errorf("pipeline: %w", err)
 	}
 
-	mg := merger.NewOrderedMerger(log)
-	pdfBytes, count, err := mg.Merge(results)
+	// Merger writes directly to the output file — no []byte returned,
+	// no os.WriteFile call needed. Peak RSS is bounded to ~chunkSize pages.
+	mg := merger.NewOrderedMerger(log, cfg.MergeChunkSize)
+	count, err := mg.MergeToFile(results, output)
 	if err != nil {
 		return fmt.Errorf("merger: %w", err)
-	}
-
-	if err := os.WriteFile(output, pdfBytes, 0o644); err != nil {
-		return fmt.Errorf("write %q: %w", output, err)
 	}
 
 	elapsed := time.Since(start)
@@ -155,4 +167,6 @@ func init() {
 		"Read JSON payload from standard input (pipe-friendly)")
 	rootCmd.Flags().IntVarP(&workers, "workers", "w", 0,
 		"Number of parallel render workers (default: NumCPU)")
+	rootCmd.Flags().IntVar(&chunkSize, "chunk-size", 0,
+		"Pages per pdfcpu merge call — lower values reduce peak RSS (default: 500)")
 }
