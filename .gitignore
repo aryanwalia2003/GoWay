@@ -1,0 +1,30 @@
+# Build outputs
+/awb-gen
+/awb-gen.exe
+
+# Generated PDFs
+*.pdf
+
+# pprof profiles
+/pprof/
+
+# Test output
+/testdata/bench_*.json
+coverage.out
+coverage.html
+
+# Font binaries — too large for VCS; use scripts/download_fonts.sh
+internal/assets/fonts/*.ttf
+
+# Go tool cache artefacts
+/vendor/
+
+# OS noise
+.DS_Store
+Thumbs.db
+awb-gen
+*.log
+*.pb.gz
+*.prof
+*.pprof
+*.trace

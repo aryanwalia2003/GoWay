@@ -1,0 +1,68 @@
+run:
+  timeout: 5m
+  go: "1.21"
+
+linters:
+  enable:
+    - errcheck        # every error must be handled
+    - gosimple        # simplification suggestions
+    - govet           # go vet checks
+    - ineffassign     # detect assignments whose values are never used
+    - staticcheck     # broad static analysis (includes SA, S, ST, QF)
+    - unused          # exported identifiers that are never used
+    - gofmt           # enforce gofmt formatting
+    - goimports       # enforce goimports import ordering
+    - misspell        # spell-check comments and strings
+    - godot           # comments should end with a period
+    - gocritic        # opinionated but useful style checks
+    - revive          # drop-in golint replacement with more rules
+    - nilerr          # detect `if err == nil { return err }` bugs
+    - bodyclose       # HTTP response bodies must be closed
+    - contextcheck    # ensure context is passed correctly
+    - exportloopref   # detect loop variable capture bugs (pre-Go 1.22)
+    - exhaustive      # switch on enums must be exhaustive
+    - prealloc        # suggest slice pre-allocation
+    - wrapcheck       # errors from external packages must be wrapped
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  govet:
+    check-shadowing: true
+    enable-all: true
+
+  revive:
+    rules:
+      - name: exported
+        arguments:
+          - "checkPrivateReceivers"
+          - "sayRepetitiveInsteadOfStutters"
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+
+  misspell:
+    locale: US
+
+  prealloc:
+    simple: true
+    range-loops: true
+    for-loops: true
+
+issues:
+  exclude-rules:
+    # Table-driven tests often have long lines — relax line-length there.
+    - path: "_test\\.go"
+      linters:
+        - lll
+    # Integration tests build binaries with exec — ok to use os.Exit indirectly.
+    - path: "integration/"
+      linters:
+        - wrapcheck
+  max-issues-per-linter: 0
+  max-same-issues: 0

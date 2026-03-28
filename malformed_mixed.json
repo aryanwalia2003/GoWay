@@ -1,0 +1,28 @@
+[
+  {
+    "awb_number": "ZFW_VALID_001",
+    "order_id": "#1",
+    "sender": "Store",
+    "receiver": "Valid Customer",
+    "address": "1 Valid St",
+    "pincode": "400001",
+    "weight": "1kg",
+    "sku_details": "Item x1"
+  },
+  {INVALID_JSON_RECORD},
+  {
+    "awb_number": "",
+    "receiver": "",
+    "address": "No AWB number or receiver — should be skipped by Validate()"
+  },
+  {
+    "awb_number": "ZFW_VALID_002",
+    "order_id": "#2",
+    "sender": "Store",
+    "receiver": "Another Valid Customer",
+    "address": "2 Valid Ave",
+    "pincode": "400002",
+    "weight": "2kg",
+    "sku_details": "Item x2"
+  }
+]
