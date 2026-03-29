@@ -1,83 +1,214 @@
-# GoWay: Internal Architecture & Pipeline Design
+# GoWay: Deep Dive Architecture & Mechanics
 
-`GoWay` is a high-performance PDF generation engine. This document detailing the internal mechanics of the Go repository.
+This document provides a **painfully detailed, code-level breakdown** of the 6 major components that power the `awb-gen` high-performance PDF pipeline. 
 
-## 🏗 High-Level Flow
+Each component corresponds to a specific stage in the Single-Producer, Multi-Worker, Single-Consumer (SPSC) architecture.
 
-The system is built on a **Single-Producer, Multi-Worker, Single-Consumer (SPSC)** architecture, optimized for O(1) memory growth regardless of input size.
+---
+
+## 1. The Ingestion Engine (The Producer)
+**Location:** `internal/pipeline/produce_method.go`  
+**Purpose:** Safely ingest a theoretically infinite stream of JSON objects without ever loading the entire array into RAM.
+
+```mermaid
+sequenceDiagram
+    participant Main as Pipeline.Run()
+    participant Prod as Pipeline.produce()
+    participant JSON as goccy/go-json
+    participant Chan as jobs (chan Job)
+
+    Main->>Prod: go p.produce(ctx, stdin, jobs)
+    activate Prod
+    Prod->>JSON: NewDecoder(stdin)
+    
+    note over Prod, JSON: Read the opening bracket '['
+    Prod->>JSON: dec.Token()
+    
+    loop dec.More() == true
+        Prod->>JSON: dec.Decode(&record)
+        
+        alt Decode Error
+            Prod-->>Prod: Log Warning, index++
+        else Valid Decode
+            Prod->>Prod: record.Validate()
+            alt Invalid Record
+                Prod-->>Prod: Log Warning, index++
+            else Valid Record
+                alt ctx.Done()
+                    Prod-->>Main: Return (Halt)
+                else
+                    Prod->>Chan: Send Job{Index, Record}
+                end
+                Prod->>Prod: index++
+            end
+        end
+    end
+    
+    Prod->>Chan: close(jobs)
+    deactivate Prod
+```
+
+---
+
+## 2. The Concurrency Orchestrator (Worker Pool)
+**Location:** `internal/pipeline/run_method.go` & `work_method.go`  
+**Purpose:** Manage exactly N worker goroutines (usually bound to physical CPU cores) to process the `jobs` channel concurrently. It explicitly handles graceful shutdown and channel closing.
 
 ```mermaid
 graph TD
-    subgraph Initialization ["1. CLI & Setup (cmd/root.go)"]
-        Start["main.go"] --> Flags["Parse Flags: --workers, --chunk-size"]
-        Flags --> Log["Init Zap Logger"]
-        Flags --> Prof["Init pprof Profiler"]
-    end
-
-    subgraph Input ["2. Input Streaming (openInput)"]
-        Reader["Stdin / File Reader"]
-    end
-
-    subgraph Pipeline ["3. Concurrent Pipeline (internal/pipeline)"]
-        Reader --> Prod["Producer Goroutine"]
+    subgraph Pipeline.Run
+        Init["Init channels: jobs (100), results (100)"]
+        Init --> StartProd["go produce()"]
         
-        subgraph Internal_Prod ["produce.go"]
-            Prod --> JSON_Node["json.NewDecoder.Token '['"]
-            JSON_Node --> Loop["dec.More"]
-            Loop --> Decode["dec.Decode AWB"]
-            Decode --> Validate["awb.Validate"]
-            Validate --> Jobs["jobs Channel"]
+        StartProd --> WG["wg := sync.WaitGroup{}<br/>wg.Add(workers)"]
+        
+        subgraph Worker Loop
+            WG --> Spawn["go p.work(ctx, jobs, results)"]
         end
-
-        subgraph Worker_Pool ["work.go"]
-            Jobs --> W1["Worker 1"]
-            Jobs --> W2["Worker 2"]
-            Jobs --> WN["Worker N"]
-
-            subgraph Render_Lock ["Semaphore (MaxConcurrentPDF)"]
-                W1 --> R1["Maroto v2 Render"]
-                W2 --> R2["Maroto v2 Render"]
-                WN --> RN["Maroto v2 Render"]
-            end
-            
-            R1 --> Res["results Channel"]
-            R2 --> Res
-            RN --> Res
-        end
+        
+        Spawn --> Closer["go func() { wg.Wait(); close(results) }()"]
+        Closer --> Merger["merger.MergeToFile(results)"]
     end
 
-    subgraph Output ["4. Ordered Merger (internal/merger)"]
-        Res --> Drain["Drain PageResult List"]
-        Drain --> Sort["Sort by Original Index"]
-        
-        subgraph Chunked_Write ["merge_method.go"]
-            Sort --> Chunks["Chunk Size: 500"]
-            Chunks --> Merge["pdfcpu.MergeRaw APPEND=true"]
-            Merge --> GC["Nil PDFBytes / Free Memory"]
-            GC --> Disk["final.pdf"]
-        end
+    subgraph Pipeline.work
+        JobChan[/"jobs chan"/] --> Loop{"range jobs"}
+        Loop --> |Next Job| ContextCheck{"ctx.Err() != nil?"}
+        ContextCheck --> |Yes| Exit["Return"]
+        ContextCheck --> |No| Render["gen.GenerateLabel(job.Record)"]
+        Render --> ResultChan[/"results <- PageResult"/]
     end
 ```
 
-## 🧩 Component Details
+---
 
-### 🟢 The Producer (`produce.go`)
-- **Streaming**: Uses `encoding/json.NewDecoder(r)` to read from the reader. It never loads the entire array into memory.
-- **Resilience**: If one record is malformed, it logs a warning and continues. It **always increments the index** even on errors, ensuring the merger knows where the gaps are.
+## 3. The Label Generator (Rendering Engine)
+**Location:** `internal/generator/generate_method.go` & `maroto_ctor.go`  
+**Purpose:** Converts a single `AWB` struct into a standalone PDF byte slice. Following our latest optimizations, the configuration (`*entity.Config`) is cached, entirely eliminating font overhead per-label.
 
-### 🔵 The Worker Pool (`run_method.go` / `work_method.go`)
-- **Isolated Generators**: Each worker owns a `MarotoGenerator`. This eliminates mutex contention on the Maroto builder.
-- **Memory Bounding**: The `MaxConcurrentPDF` semaphore (default: 8 or NumCPU) ensures that even if you have 64 CPU cores, you aren't rendering more than 8 PDFs concurrently. This caps the **Resident Set Size (RSS)**.
+```mermaid
+classDiagram
+    class MarotoGenerator {
+        -barcodeEncoder: barcode.Renderer
+        -regularFont: byte array
+        -boldFont: byte array
+        -cfg: entity.Config
+        +GenerateLabel(record awb.AWB) (byte array, error)
+    }
 
-### 🟡 The Generator (`generate_method.go`)
-- **Zero-Allocation Buffers**: Pre-allocates `5KB` (`estimatedLabelBytes`) for every label buffer. This avoids the standard `bytes.growSlice` doublings that previously wasted ~79% of heap space.
-- **Asset Embedding**: Uses `go:embed` for fonts (Inter/Roboto), making the binary portable.
+    class Maroto {
+        <<interface>>
+        +Generate() document.Document
+    }
+```
 
-### 🔴 The Merger (`merge_method.go`)
-- **Ordering**: Workers finish at different times. The merger drains the channel and **re-sorts the results** to match the original input JSON order.
-- **Incremental Merging**: Uses `pdfcpu.MergeRaw` in `append` mode. It merges 500 pages at a time directly into the file on disk. 
-- **Active Cleanup**: After a chunk is merged, it immediately nils out the `PDFBytes` in the slice, allowing the Go Garbage Collector (GC) to reclaim memory *while the next chunk is being prepared*.
+```mermaid
+sequenceDiagram
+    participant Worker as p.work()
+    participant Gen as MarotoGenerator
+    participant Maroto engine
+    participant Barcode as barcode.Renderer
 
-## ⏱ Performance Characteristics
-- **Complexity**: Time O(N), Memory O(1) relative to batch size.
-- **Stability**: Peak RSS for 5,000 labels is stable at **~120-150 MB**, compared to 900+ MB in traditional approaches.
+    Worker->>Gen: GenerateLabel(record)
+    activate Gen
+    note over Gen: Reuse pre-compiled g.cfg
+    Gen->>Maroto engine: maroto.New(g.cfg)
+    
+    Gen->>Maroto engine: addHeaderRows()
+    Gen->>Maroto engine: addBodyRows()
+    
+    Gen->>Barcode: renderBarcodePNG(awb)
+    Barcode-->>Gen: byte array (PNG)
+    Gen->>Maroto engine: addBarcodeRows(pngBytes)
+    
+    Gen->>Maroto engine: m.Generate()
+    Maroto engine-->>Gen: doc.Document
+    
+    note over Gen: Pre-allocate target buffer (5KB)
+    Gen->>Gen: buf := make([]byte, 0, 5120)
+    Gen->>Gen: append(buf, doc.GetBytes()...)
+    
+    Gen-->>Worker: byte array (Valid PDF), error
+    deactivate Gen
+```
+
+---
+
+## 4. The Barcode Engine
+**Location:** `internal/barcode/render_method.go`  
+**Purpose:** Converts alphanumeric AWB strings into highly readable Code128 PNG bitmaps that `maroto` can embed.
+
+```mermaid
+graph TD
+    Input["Input: AWB String e.g. 'AWB123456'"] --> Code128["code128.Encode(awb)"]
+    Code128 --> Rescale["barcode.Scale(bar, 250, 50)"]
+    
+    subgraph PNG Rasterization
+        Rescale --> Buffer["bytes.NewBuffer(make(byte array, 0, 1024))"]
+        Buffer --> Encode["png.Encode(buffer, scaled_barcode)"]
+    end
+    
+    Encode --> Out["Return byte array (PNG image data)"]
+```
+
+---
+
+## 5. The Windowed Merger (The O(1) Optimization)
+**Location:** `internal/merger/merge_method.go`  
+**Purpose:** This is the heart of the system's memory stability. Because Worker 8 might finish Job 12 before Worker 1 finishes Job 11, the results arrive **out of order**. The merger buffers them in a Min-Heap and flushes them.
+
+```mermaid
+stateDiagram-v2
+    [*] --> WaitResults
+    WaitResults --> PushHeap : Receive PageResult
+    
+    state "Min-Heap Processing" as HeapOpt {
+        PushHeap --> CheckHead : heap.Push(res)
+        CheckHead --> PopHead : heap 0 Index == ExpectedIndex
+        PopHead --> AppendBuffer : heap.Pop()
+        AppendBuffer --> CheckHead : ExpectedIndex++
+        
+        CheckHead --> WaitResults : heap 0 Index > ExpectedIndex
+    }
+
+    state "Chunk Flushing" as FlushOpt {
+        AppendBuffer --> TriggerFlush : len(chunkBuffer) == 500
+        TriggerFlush --> AppendToDisk : pdfcpu.MergeRaw APPEND
+        AppendToDisk --> ClearMemory : chunkBuffer = make([]PageResult, 0)
+        ClearMemory --> WaitResults : GC reclaims old page bytes
+    }
+```
+
+---
+
+## 6. The Integration Bridge (Django & CLI)
+**Location:** `cmd/root.go` & `reverse_awb_generation.py`  
+**Purpose:** How Python communicates with the compiled Go binary. Python uses `subprocess` to stream JSON.
+
+```mermaid
+sequenceDiagram
+    participant Django as Celery Worker
+    participant Subprocess as OS Subprocess PIPE
+    participant GoBin as awb-gen
+    participant Disk as /tmp/awb-xxx.pdf
+
+    Django->>Django: Build list of AWB Dicts
+    Django->>Django: json_data = json.dumps(list)
+    
+    Django->>Subprocess: Popen(['awb-gen', '--stdin', '--output', path])
+    activate Subprocess
+    
+    Subprocess->>GoBin: Stream JSON over STDIN
+    activate GoBin
+    
+    GoBin->>GoBin: Pipeline executes...
+    GoBin->>Disk: Incremental chunk writes
+    
+    GoBin-->>Subprocess: Exit 0
+    deactivate GoBin
+    
+    Subprocess-->>Django: Process Complete
+    deactivate Subprocess
+    
+    Django->>Disk: Read final PDF
+    Django->>Django: Upload to AWS S3 bucket
+```
