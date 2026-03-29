@@ -4,6 +4,7 @@ go 1.23
 
 require (
 	github.com/boombuler/barcode v1.1.0
+	github.com/goccy/go-json v0.10.6
 	github.com/johnfercher/maroto/v2 v2.2.0
 	github.com/pdfcpu/pdfcpu v0.8.0
 	github.com/spf13/cobra v1.10.0

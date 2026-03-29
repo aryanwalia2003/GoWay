@@ -7,14 +7,14 @@ This report summarizes the scaling characteristics of the `awb-gen` system acros
 | Batch Size | Duration | Throughput | Peak RAM (RSS) | Efficiency |
 | :--- | :--- | :--- | :--- | :--- |
 | **500 Labels** | 2.4s | 210 labels/s | 116 MB | ~232 KB |
-| **5,000 Labels** | 31.5s | **158.8 labels/s** | 151 MB | ~30 KB |
-| **50,000 Labels**| 328.9s | 152.0 labels/s | 191 MB | ~3 KB |
+| **5,000 Labels** | 25.9s | **192.6 labels/s** | 151 MB | ~30 KB |
+| **50,000 Labels** | 273.1s | **183.1 labels/s** | **191 MB** | **~3 KB** |
 
 ## 🔍 Bottleneck Analysis
 
 ### 1. CPU (The Current Ceiling)
-- **JSON Encoding/Decoding**: ~22% of CPU time is spent on JSON parsing for large batch ingestion (`encoding/json`).
-- **Garbage Collection**: Heavy allocations trigger frequent GC sweeps, consisting of ~15% of the total CPU time.
+- **JSON Processing**: Still account for ~22% of CPU time, but the throughput has improved by ~20% thanks to `goccy/go-json`.
+- **Map Operations**: ~14% of CPU time is spent on property maps for row layout coordination.
 - **CPU Bound**: Throughput is currently strictly limited by compute speed rather than I/O or Wait times.
 
 ### 2. Memory (Highly Stable)
