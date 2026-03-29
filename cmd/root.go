@@ -100,7 +100,6 @@ func run() error {
 		return fmt.Errorf("pipeline: %w", err)
 	}
 
-	// Merger writes directly to the output file.
 	mg := merger.NewOrderedMerger(log, cfg.MergeChunkSize)
 	count, err := mg.MergeToFile(results, output)
 	if err != nil {

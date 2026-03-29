@@ -29,3 +29,6 @@ awb-gen
 *.pprof
 *.trace
 *.json
+
+awb-gen-race
+*.txt

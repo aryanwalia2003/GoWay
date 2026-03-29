@@ -25,16 +25,12 @@ func (p *Pipeline) work(
 				return
 			}
 
-			// Acquire semaphore slot
 			select {
 			case <-ctx.Done():
 				return
 			case sem <- struct{}{}:
 			}
-
 			pdfBytes, err := gen.GenerateLabel(job.Record)
-
-			// Release semaphore slot
 			<-sem
 
 			if err != nil {

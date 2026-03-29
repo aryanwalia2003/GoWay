@@ -17,7 +17,6 @@ func (p *Pipeline) Run(ctx context.Context, r io.Reader) (<-chan PageResult, err
 
 	go p.produce(ctx, r, jobs)
 
-	// Stage 2: worker pool
 	var wg sync.WaitGroup
 	for i := 0; i < p.cfg.WorkerCount; i++ {
 		wg.Add(1)
@@ -28,7 +27,6 @@ func (p *Pipeline) Run(ctx context.Context, r io.Reader) (<-chan PageResult, err
 		}(gen)
 	}
 
-	// Stage 3: watcher
 	go func() {
 		wg.Wait()
 		close(results)

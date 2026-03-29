@@ -11,12 +11,7 @@ import (
 )
 
 // produce is the single producer goroutine. It stream-decodes a JSON array
-// from r using json.Decoder (O(1) memory regardless of input size), validates
-// each record, and sends Jobs to the jobs channel.
-//
-// It closes jobs when the array is exhausted or ctx is cancelled.
-// Malformed or invalid records are logged and skipped; they do not abort
-// the batch — the index counter still advances to preserve downstream ordering.
+// from r, validates each record, and sends Jobs to the jobs channel.
 func (p *Pipeline) produce(ctx context.Context, r io.Reader, jobs chan<- Job) {
 	defer close(jobs)
 

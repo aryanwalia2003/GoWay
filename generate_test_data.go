@@ -12,10 +12,31 @@ import (
 )
 
 func main() {
-	var records []awb.AWB
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: go run generate_test_data.go <count> <filename>")
+		return
+	}
 
-	for i := 1; i <= 5000; i++ {
-		records = append(records, awb.AWB{
+	countStr := os.Args[1]
+	filename := os.Args[2]
+
+	var count int
+	fmt.Sscanf(countStr, "%d", &count)
+
+	f, err := os.Create(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	// Write opening bracket for the array
+	f.WriteString("[\n")
+
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+
+	for i := 1; i <= count; i++ {
+		record := awb.AWB{
 			AWBNumber:  fmt.Sprintf("AWB%08d", i),
 			OrderID:    fmt.Sprintf("ORD%08d", i),
 			Sender:     "Test Sender Inc. 123 Logistics Park",
@@ -24,18 +45,19 @@ func main() {
 			Pincode:    "110001",
 			Weight:     "1.5 Kg",
 			SKUDetails: "Books (2), Electronics (1)",
-		})
+		}
+		
+		if err := enc.Encode(record); err != nil {
+			panic(err)
+		}
+		
+		if i < count {
+			f.WriteString(",")
+		}
 	}
 
-	f, err := os.Create("5k_batch.json")
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
+	// Write closing bracket
+	f.WriteString("]\n")
 
-	enc := json.NewEncoder(f)
-	if err := enc.Encode(records); err != nil {
-		panic(err)
-	}
-	fmt.Println("Generated 5k_batch.json successfully with 5000 records.")
+	fmt.Printf("Generated %s successfully with %d records.\n", filename, count)
 }

@@ -49,7 +49,6 @@ func (g *MarotoGenerator) GenerateLabel(record awb.AWB) ([]byte, error) {
 		return nil, err
 	}
 
-	// Pre-allocate the output buffer for efficiency.
 	buf := make([]byte, 0, estimatedLabelBytes)
 
 	raw := doc.GetBytes()
@@ -58,7 +57,6 @@ func (g *MarotoGenerator) GenerateLabel(record awb.AWB) ([]byte, error) {
 	return buf, nil
 }
 
-// customFonts returns the font weights required by the generator.
 func (g *MarotoGenerator) customFonts() []*entity.CustomFont {
 	return []*entity.CustomFont{
 		{
@@ -162,7 +160,6 @@ func addAddressRows(m core.Maroto, r awb.AWB) {
 func addBarcodeRows(m core.Maroto, r awb.AWB, g *MarotoGenerator) {
 	pngBytes, err := g.renderBarcodePNG(r.AWBNumber)
 	if err != nil {
-		// Graceful degradation: failed barcode → styled text placeholder.
 		m.AddRows(
 			row.New(BarcodeHeightMM).Add(
 				col.New(ColFull).Add(
