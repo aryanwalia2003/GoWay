@@ -9,38 +9,23 @@ import (
 	"github.com/johnfercher/maroto/v2/pkg/components/line"
 	"github.com/johnfercher/maroto/v2/pkg/components/row"
 	"github.com/johnfercher/maroto/v2/pkg/components/text"
-	"github.com/johnfercher/maroto/v2/pkg/config"
 	"github.com/johnfercher/maroto/v2/pkg/consts/align"
 	"github.com/johnfercher/maroto/v2/pkg/consts/extension"
 	"github.com/johnfercher/maroto/v2/pkg/consts/fontstyle"
-	"github.com/johnfercher/maroto/v2/pkg/consts/orientation"
-	"github.com/johnfercher/maroto/v2/pkg/consts/pagesize"
 	"github.com/johnfercher/maroto/v2/pkg/core"
-	"github.com/johnfercher/maroto/v2/pkg/core/entity"
 	"github.com/johnfercher/maroto/v2/pkg/props"
 )
 
-// estimatedLabelBytes is 5 KB (pre-allocated to avoid slice growth).
+// estimatedLabelBytes is the pre-allocated output buffer size per label.
+// 5 KB covers a typical AWB page; avoids growSlice doublings.
 const estimatedLabelBytes = 5 * 1024
 
 // GenerateLabel renders a single AWB record into a self-contained PDF.
+//
+// g.cfg is reused across calls — no config rebuild, no font re-registration.
+// Only the variable content (text strings, barcode PNG) differs per label.
 func (g *MarotoGenerator) GenerateLabel(record awb.AWB) ([]byte, error) {
-	cfg := config.NewBuilder().
-		WithPageSize(pagesize.A6).
-		WithOrientation(orientation.Horizontal).
-		WithLeftMargin(MarginMM).
-		WithRightMargin(MarginMM).
-		WithTopMargin(MarginMM).
-		WithBottomMargin(MarginMM).
-		WithCustomFonts(g.customFonts()).
-		WithDefaultFont(&props.Font{
-			Family: FontFamily,
-			Style:  fontstyle.Normal,
-			Size:   FontSizeNormal,
-		}).
-		Build()
-
-	m := maroto.New(cfg)
+	m := maroto.New(g.cfg)
 
 	addAllRows(m, record, g)
 
@@ -50,26 +35,8 @@ func (g *MarotoGenerator) GenerateLabel(record awb.AWB) ([]byte, error) {
 	}
 
 	buf := make([]byte, 0, estimatedLabelBytes)
-
-	raw := doc.GetBytes()
-	buf = append(buf, raw...)
-
+	buf = append(buf, doc.GetBytes()...)
 	return buf, nil
-}
-
-func (g *MarotoGenerator) customFonts() []*entity.CustomFont {
-	return []*entity.CustomFont{
-		{
-			Family: FontFamily,
-			Style:  fontstyle.Normal,
-			Bytes:  g.regularFont,
-		},
-		{
-			Family: FontFamily,
-			Style:  fontstyle.Bold,
-			Bytes:  g.boldFont,
-		},
-	}
 }
 
 // addAllRows assembles the full AWB layout.

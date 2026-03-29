@@ -32,3 +32,4 @@ awb-gen
 
 awb-gen-race
 *.txt
+*.tar.*

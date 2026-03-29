@@ -1,6 +1,10 @@
 package generator
 
-import "awb-gen/internal/barcode"
+import (
+	"awb-gen/internal/barcode"
+
+	"github.com/johnfercher/maroto/v2/pkg/core/entity"
+)
 
 // MarotoGenerator renders AWB labels using the maroto v2 PDF library.
 //
@@ -14,4 +18,5 @@ type MarotoGenerator struct {
 	barcodeEncoder barcode.Renderer
 	regularFont    []byte
 	boldFont       []byte
+	cfg            *entity.Config
 }
