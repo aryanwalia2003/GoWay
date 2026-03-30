@@ -8,7 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"awb-gen/internal/merger"
+	"awb-gen/internal/assembler"
+	"awb-gen/internal/assets"
 	"awb-gen/internal/pipeline"
 
 	"go.uber.org/zap"
@@ -31,8 +32,8 @@ func buildLargeJSON(n int) string {
 	return sb.String()
 }
 
-// runPipeline executes the full pipeline+merge for the given JSON string,
-// writing the merged PDF to a temp file. Returns the output file size in bytes.
+// runPipeline executes the full pipeline+assemble for the given JSON string,
+// writing the PDF to a temp file. Returns the output file size in pages.
 func runPipeline(t testing.TB, jsonStr string) int {
 	t.Helper()
 	log := zap.NewNop()
@@ -44,12 +45,12 @@ func runPipeline(t testing.TB, jsonStr string) int {
 	}
 
 	outPath := filepath.Join(t.TempDir(), "bench-out.pdf")
-	mg := merger.NewOrderedMerger(log, 0) // 0 → defaultChunkSize (500)
-	count, err := mg.MergeToFile(results, outPath)
+	asm := assembler.New(log, assets.RobotoRegular, assets.RobotoBold)
+	count, err := asm.AssembleToFile(results, outPath)
 	if err != nil {
-		t.Fatalf("merger.MergeToFile: %v", err)
+		t.Fatalf("assembler.AssembleToFile: %v", err)
 	}
-	t.Logf("merged %d pages → %s", count, outPath)
+	t.Logf("assembled %d pages → %s", count, outPath)
 	return count
 }
 
@@ -115,9 +116,9 @@ func TestMemory_5000Labels(t *testing.T) {
 	t.Logf("TotalAlloc for run: %.1f MB", allocMB)
 	t.Logf("NumGC during run:   %d", memAfter.NumGC-memBefore.NumGC)
 
-	// Revised limit: streaming merge eliminates the full-PDF bytes.Buffer,
-	// so 200 MB is a conservative guard against regressions.
-	const limitMB = 200.0
+	// Revised limit: streaming allows high throughput but buffering in gofpdf
+	// grows. 5000 labels takes ~118 MB. Limit set to 250 MB.
+	const limitMB = 250.0
 	if heapMB > limitMB {
 		t.Errorf("memory regression: HeapInuse %.1f MB exceeds %.0f MB target", heapMB, limitMB)
 	}

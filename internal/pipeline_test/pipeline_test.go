@@ -50,7 +50,7 @@ func TestPipelineRun_ProducesResults(t *testing.T) {
 		t.Fatalf("Run returned error: %v", err)
 	}
 
-	var received []pipeline.PageResult
+	var received []pipeline.RenderResult
 	for r := range results {
 		received = append(received, r)
 	}
@@ -95,11 +95,11 @@ func TestPipelineRun_ContextCancellation(t *testing.T) {
 	// If we reach here without deadlock, the test passes.
 }
 
-func TestPipelineRun_MalformedJSON_SkipsRecord(t *testing.T) {
+func TestPipelineRun_MalformedJSON_Aborts(t *testing.T) {
 	t.Parallel()
 
-	// First record is malformed JSON; second is valid. Producer should skip
-	// the bad one and still emit the good one.
+	// First record is malformed JSON; second is valid. Producer should abort
+	// parsing and stop the pipeline cleanly without looping infinitely.
 	input := `[
 		{BROKEN},
 		{"awb_number":"ZFW1","receiver":"R","address":"A","sender":"S","order_id":"#1","pincode":"0","weight":"1kg","sku_details":"x"}
@@ -118,9 +118,9 @@ func TestPipelineRun_MalformedJSON_SkipsRecord(t *testing.T) {
 		}
 	}
 
-	// We may get 0 or 1 depending on whether the valid record was parsed before
-	// the decoder got confused; we just assert no panic and no deadlock.
-	t.Logf("received %d successful result(s) from partially malformed input", count)
+	// We expect 0 results since the stream was corrupted before the valid record.
+	// The test passes if it reaches here without deadlock.
+	t.Logf("pipeline aborted cleanly and yielded %d results", count)
 }
 
 func BenchmarkPipelineRun_1000Labels(b *testing.B) {
