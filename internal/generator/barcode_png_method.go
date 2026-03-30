@@ -4,26 +4,30 @@ import (
 	"bytes"
 	"fmt"
 	"image"
-	"image/color"
 	"image/png"
+	"sync"
 )
 
-// Barcode raster constants — tuned for thermal-printer scanner legibility.
 const (
-	barcodeBarWidthPx = 3  // pixels wide per bar module (3px = crisp at 203 dpi)
-	barcodeImgHeightPx = 72 // total image height in pixels
-	barcodePaddingPx   = 6  // silent-zone padding top & bottom inside image
+	barcodeBarWidthPx  = 3
+	barcodeImgHeightPx = 72
+	barcodePaddingPx   = 6
 )
 
-// renderBarcodePNG converts the bar-pattern produced by the barcode.Renderer
-// into a PNG byte slice suitable for embedding in a maroto image component.
-//
-// The image is rasterised at barcodeBarWidthPx pixels per bar module and
-// barcodeImgHeightPx pixels tall. This gives adequate scanner resolution for
-// thermal label printers at 203–300 dpi without excessive memory use.
-//
-// Memory layout: one image.NRGBA allocation per call, released to GC when the
-// PDF byte slice is handed off — no retained state.
+// pngBufPool recycles encode buffers across RenderLabel calls.
+// Each worker owns its own MarotoGenerator so pool access is single-threaded
+// per goroutine — no contention, just avoiding per-label heap allocation.
+var pngBufPool = sync.Pool{
+	New: func() any {
+		b := &bytes.Buffer{}
+		b.Grow(3 * 1024)
+		return b
+	},
+}
+
+// renderBarcodePNG encodes the AWB number into a PNG byte slice.
+// The pixel fill uses direct Pix slice writes instead of SetNRGBA to avoid
+// per-pixel bounds checks and function call overhead.
 func (g *MarotoGenerator) renderBarcodePNG(content string) ([]byte, error) {
 	bars, barCount, err := g.barcodeEncoder.Encode(content)
 	if err != nil {
@@ -37,13 +41,12 @@ func (g *MarotoGenerator) renderBarcodePNG(content string) ([]byte, error) {
 
 	img := image.NewNRGBA(image.Rect(0, 0, imgW, imgH))
 
-	// Flood fill with white.
-	white := color.NRGBA{R: 255, G: 255, B: 255, A: 255}
-	black := color.NRGBA{A: 255}
-	for y := 0; y < imgH; y++ {
-		for x := 0; x < imgW; x++ {
-			img.SetNRGBA(x, y, white)
-		}
+	// Flood fill white via raw Pix slice — avoids per-pixel bounds check overhead.
+	for i := 0; i < len(img.Pix); i += 4 {
+		img.Pix[i] = 255   // R
+		img.Pix[i+1] = 255 // G
+		img.Pix[i+2] = 255 // B
+		img.Pix[i+3] = 255 // A
 	}
 
 	// Paint black bar columns.
@@ -53,17 +56,31 @@ func (g *MarotoGenerator) renderBarcodePNG(content string) ([]byte, error) {
 		}
 		xLeft := module * barcodeBarWidthPx
 		for dx := 0; dx < barcodeBarWidthPx; dx++ {
+			x := xLeft + dx
 			for y := barTop; y < barBot; y++ {
-				img.SetNRGBA(xLeft+dx, y, black)
+				idx := img.PixOffset(x, y)
+				img.Pix[idx] = 0   // R
+				img.Pix[idx+1] = 0 // G
+				img.Pix[idx+2] = 0 // B
+				img.Pix[idx+3] = 255 // A
 			}
 		}
 	}
 
-	// Encode to PNG. Pre-grow buffer to reduce reallocation inside png.Encode.
-	var buf bytes.Buffer
-	buf.Grow(imgW * imgH / 3)
-	if err := png.Encode(&buf, img); err != nil {
+	buf := pngBufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	if err := png.Encode(buf, img); err != nil {
+		pngBufPool.Put(buf)
 		return nil, fmt.Errorf("renderBarcodePNG png.Encode: %w", err)
 	}
-	return buf.Bytes(), nil
+
+	out := make([]byte, buf.Len())
+	copy(out, buf.Bytes())
+	pngBufPool.Put(buf)
+	return out, nil
+}
+
+// renderBarcodeFallbackText returns a placeholder string when barcode encoding fails.
+func renderBarcodeFallbackText(awbNumber string) string {
+	return "[BARCODE: " + awbNumber + "]"
 }

@@ -1,10 +1,13 @@
 package pipeline
 
-// PageResult is the output produced by a worker goroutine for a single label.
-// It carries the rendered PDF bytes and the original job index so the merger
-// can reconstruct document order deterministically without locks.
-type PageResult struct {
-	Index    int    // matches Job.Index — used for ordered merge
-	PDFBytes []byte // complete single-page PDF rendered by the worker
-	Err      error  // non-nil if rendering failed; merger skips and logs
+import "awb-gen/internal/awb"
+
+// RenderResult is the output of a worker goroutine for a single label.
+// Workers perform only the CPU-heavy work: barcode encoding and PNG compression.
+// The assembler goroutine receives these and draws them into a single gofpdf document.
+type RenderResult struct {
+	Index      int     // original position in input — assembler uses this for ordering
+	Record     awb.AWB // full AWB data for text layout
+	BarcodePNG []byte  // pre-compressed PNG — workers pay the zlib cost, not the assembler
+	Err        error   // non-nil if barcode encoding failed; assembler skips and logs
 }

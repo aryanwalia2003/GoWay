@@ -7,8 +7,9 @@ import (
 	"os"
 	"time"
 
+	"awb-gen/internal/assembler"
+	"awb-gen/internal/assets"
 	"awb-gen/internal/logger"
-	"awb-gen/internal/merger"
 	"awb-gen/internal/pipeline"
 	"awb-gen/internal/profiler"
 
@@ -30,7 +31,7 @@ var rootCmd = &cobra.Command{
 	Use:   "awb-gen",
 	Short: "High-Performance Go AWB Label Generator",
 	Long: `awb-gen generates Air Waybill (AWB) PDFs from JSON input efficiently.
-		
+
 Examples:
   awb-gen --input data.json --output batch.pdf
   cat data.json | awb-gen --stdin --output batch.pdf`,
@@ -47,7 +48,6 @@ Examples:
 	SilenceUsage: true,
 }
 
-// Execute runs the root command.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		if logger.Log != nil {
@@ -60,7 +60,6 @@ func Execute() {
 	logger.Sync()
 }
 
-// run wires the input, starts the pipeline, and merges results.
 func run() error {
 	log := logger.Log
 	start := time.Now()
@@ -74,36 +73,26 @@ func run() error {
 	cfg := pipeline.Defaults()
 	if workers > 0 {
 		cfg.WorkerCount = workers
-		// Respect MaxConcurrentPDF cap even if caller overrides WorkerCount.
 		if workers < cfg.MaxConcurrentPDF {
 			cfg.MaxConcurrentPDF = workers
 		}
-		cfg.JobBufferSize = workers * 2
-		cfg.ResultBufferSize = workers * 4
 	}
 	if chunkSize > 0 {
 		cfg.MergeChunkSize = chunkSize
 	}
 
-	log.Info("awb-gen: starting pipeline",
-		zap.Int("workers", cfg.WorkerCount),
-		zap.Int("max_concurrent_pdf", cfg.MaxConcurrentPDF),
-		zap.Int("merge_chunk_size", cfg.MergeChunkSize),
-		zap.String("output", output),
-	)
-
-	ctx := context.Background()
-
 	pl := pipeline.New(cfg, log)
-	results, err := pl.Run(ctx, reader)
+	results, err := pl.Run(context.Background(), reader)
 	if err != nil {
 		return fmt.Errorf("pipeline: %w", err)
 	}
 
-	mg := merger.NewOrderedMerger(log, cfg.MergeChunkSize)
-	count, err := mg.MergeToFile(results, output)
+	// Assembler owns one gofpdf doc for the entire batch.
+	// Fonts are loaded from the embedded assets — same bytes the workers use.
+	asm := assembler.New(log, assets.RobotoRegular, assets.RobotoBold)
+	count, err := asm.AssembleToFile(results, output)
 	if err != nil {
-		return fmt.Errorf("merger: %w", err)
+		return fmt.Errorf("assembler: %w", err)
 	}
 
 	elapsed := time.Since(start)
@@ -116,16 +105,13 @@ func run() error {
 	return nil
 }
 
-// openInput returns a reader for the JSON input.
 func openInput() (io.Reader, func(), error) {
 	switch {
 	case useStdin && input != "":
 		return nil, func() {}, fmt.Errorf("--stdin and --input are mutually exclusive")
-
 	case useStdin:
 		logger.Log.Info("awb-gen: reading from stdin")
 		return os.Stdin, func() {}, nil
-
 	case input != "":
 		f, err := os.Open(input)
 		if err != nil {
@@ -133,7 +119,6 @@ func openInput() (io.Reader, func(), error) {
 		}
 		logger.Log.Info("awb-gen: reading from file", zap.String("path", input))
 		return f, func() { _ = f.Close() }, nil
-
 	default:
 		return nil, func() {}, fmt.Errorf("provide --input <path> or --stdin")
 	}
@@ -154,5 +139,5 @@ func init() {
 	rootCmd.Flags().IntVarP(&workers, "workers", "w", 0,
 		"Number of parallel render workers (default: NumCPU)")
 	rootCmd.Flags().IntVar(&chunkSize, "chunk-size", 0,
-		"Pages per pdfcpu merge call — lower values reduce peak RSS (default: 500)")
+		"Deprecated: no-op, kept for CLI compatibility")
 }

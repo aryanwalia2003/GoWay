@@ -8,11 +8,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// work is the body of each worker goroutine.
 func (p *Pipeline) work(
 	ctx context.Context,
 	jobs <-chan Job,
-	results chan<- PageResult,
+	results chan<- RenderResult,
 	gen generator.LabelGenerator,
 	sem chan struct{},
 ) {
@@ -30,20 +29,24 @@ func (p *Pipeline) work(
 				return
 			case sem <- struct{}{}:
 			}
-			pdfBytes, err := gen.GenerateLabel(job.Record)
+
+			pngBytes, err := gen.RenderLabel(job.Record)
+
 			<-sem
 
 			if err != nil {
-				p.log.Error("pipeline/work: label generation failed",
+				p.log.Error("pipeline/work: barcode render failed",
 					zap.Int("index", job.Index),
 					zap.String("awb_number", job.Record.AWBNumber),
-					zap.Error(err))
+					zap.Error(err),
+				)
 			}
 
-			result := PageResult{
-				Index:    job.Index,
-				PDFBytes: pdfBytes,
-				Err:      err,
+			result := RenderResult{
+				Index:      job.Index,
+				Record:     job.Record,
+				BarcodePNG: pngBytes,
+				Err:        err,
 			}
 
 			select {

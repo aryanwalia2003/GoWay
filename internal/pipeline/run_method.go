@@ -8,10 +8,12 @@ import (
 	"awb-gen/internal/generator"
 )
 
-// Run starts the AWB generation pipeline.
-func (p *Pipeline) Run(ctx context.Context, r io.Reader) (<-chan PageResult, error) {
+// Run starts the pipeline and returns a channel of RenderResults.
+// Workers perform barcode encoding and PNG compression in parallel.
+// The caller (assembler) draws pages from these results into a single gofpdf doc.
+func (p *Pipeline) Run(ctx context.Context, r io.Reader) (<-chan RenderResult, error) {
 	jobs := make(chan Job, p.cfg.JobBufferSize)
-	results := make(chan PageResult, p.cfg.ResultBufferSize)
+	results := make(chan RenderResult, p.cfg.ResultBufferSize)
 
 	sem := make(chan struct{}, p.cfg.MaxConcurrentPDF)
 

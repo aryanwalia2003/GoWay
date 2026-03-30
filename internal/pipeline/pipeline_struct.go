@@ -6,10 +6,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Pipeline owns the full SPSC processing graph:
-//
-//	JSON reader → job channel → worker pool → result channel → (caller drains)
-//
+// Pipeline owns the SPSC processing graph.
 // Construct once with New(), call Run() once, drain the returned channel.
 // Not reusable across calls.
 type Pipeline struct {

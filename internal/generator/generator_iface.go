@@ -1,13 +1,14 @@
 package generator
 
-import "awb-gen/internal/awb"
+import (
+	"awb-gen/internal/awb"
+)
 
-// LabelGenerator is the contract for rendering a single AWB record into a
-// self-contained in-memory PDF byte slice.
+// LabelGenerator is the contract for the CPU-intensive per-label work:
+// barcode encoding and PNG compression. It does NOT produce a PDF.
+// The assembler goroutine handles all PDF drawing from these results.
 //
-// Callers (pipeline workers) must never share a LabelGenerator between
-// goroutines. Each goroutine must own its own instance to guarantee zero
-// shared mutable state and zero write contention.
+// Each goroutine must own its own LabelGenerator instance — never shared.
 type LabelGenerator interface {
-	GenerateLabel(record awb.AWB) (pdfBytes []byte, err error)
+	RenderLabel(record awb.AWB) ([]byte, error)
 }
