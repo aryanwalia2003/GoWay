@@ -7,7 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"awb-gen/internal/handler"
 	"awb-gen/internal/logger"
+	"awb-gen/internal/middleware"
 	"awb-gen/internal/server"
 
 	"github.com/spf13/cobra"
@@ -21,10 +23,11 @@ var serveCmd = &cobra.Command{
 	Short: "Start the GoWay HTTP microservice",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		mux := http.NewServeMux()
-		// Placeholder for Epic 3 routes.
-		mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		})
+		// Set up handlers
+		genHandler := http.HandlerFunc(handler.HandleGenerate)
+		authMiddleware := middleware.Auth(os.Getenv("API_KEYS"))
+
+		mux.HandleFunc("/generate", middleware.Logging(authMiddleware(genHandler)).ServeHTTP)
 
 		addr := fmt.Sprintf(":%d", port)
 		srv := server.NewServer(addr, mux)
