@@ -1,8 +1,10 @@
 package logger
 
 import (
+	"io"
 	"os"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -56,4 +58,34 @@ func chooseLevel(debug bool) zapcore.Level {
 		return zapcore.DebugLevel
 	}
 	return zapcore.InfoLevel
+}
+
+// InitTestLogger sets up a simple logger writing to the provided io.Writer.
+func InitTestLogger(w io.Writer) {
+	cfg := zap.NewProductionEncoderConfig()
+	cfg.EncodeTime = zapcore.ISO8601TimeEncoder
+	enc := zapcore.NewJSONEncoder(cfg)
+	core := zapcore.NewCore(enc, zapcore.AddSync(w), zap.DebugLevel)
+	Log = zap.New(core)
+}
+
+// GenerateTraceID returns a new unique UUID tracking token.
+func GenerateTraceID() string {
+	return uuid.New().String()
+}
+
+// LogRequest emits a structured representation of an incoming HTTP request.
+func LogRequest(trace, method, path string, status int, dur int64, awbs []string) {
+	if Log == nil {
+		return
+	}
+	Log.Info("request completed",
+		zap.String("trace_id", trace),
+		zap.String("source", "goway"),
+		zap.String("method", method),
+		zap.String("path", path),
+		zap.Int("status_code", status),
+		zap.Int64("duration_ms", dur),
+		zap.Strings("failed_awbs", awbs),
+	)
 }
