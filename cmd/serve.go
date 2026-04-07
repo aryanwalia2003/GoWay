@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"awb-gen/internal/handler"
@@ -27,7 +28,15 @@ var serveCmd = &cobra.Command{
 		genHandler := http.HandlerFunc(handler.HandleGenerate)
 		authMiddleware := middleware.Auth(os.Getenv("API_KEYS"))
 
-		mux.HandleFunc("/generate", middleware.Logging(authMiddleware(genHandler)).ServeHTTP)
+		concurrencyLimit := 100
+		if val := os.Getenv("CONCURRENCY_LIMIT"); val != "" {
+			if parsed, err := strconv.Atoi(val); err == nil {
+				concurrencyLimit = parsed
+			}
+		}
+		concurrencyMiddleware := middleware.NewConcurrency(concurrencyLimit)
+
+		mux.HandleFunc("/generate", middleware.Logging(authMiddleware(concurrencyMiddleware.Wrap(genHandler))).ServeHTTP)
 
 		addr := fmt.Sprintf(":%d", port)
 		srv := server.NewServer(addr, mux)
