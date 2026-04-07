@@ -90,7 +90,7 @@ func run() error {
 	// Assembler owns one gofpdf doc for the entire batch.
 	// Fonts are loaded from the embedded assets — same bytes the workers use.
 	asm := assembler.New(log, assets.RobotoRegular, assets.RobotoBold)
-	count, err := asm.AssembleToFile(results, output)
+	count, _, err := asm.AssembleToFile(results, output)
 	if err != nil {
 		return fmt.Errorf("assembler: %w", err)
 	}

@@ -46,7 +46,7 @@ func runPipeline(t testing.TB, jsonStr string) int {
 
 	outPath := filepath.Join(t.TempDir(), "bench-out.pdf")
 	asm := assembler.New(log, assets.RobotoRegular, assets.RobotoBold)
-	count, err := asm.AssembleToFile(results, outPath)
+	count, _, err := asm.AssembleToFile(results, outPath)
 	if err != nil {
 		t.Fatalf("assembler.AssembleToFile: %v", err)
 	}

@@ -34,7 +34,7 @@ const (
 // Fonts are registered once on the gofpdf instance at startup.
 // Each page costs: one AddPage() + a handful of Cell/Image calls.
 // No pdfcpu. No xref merging. No temp files. Structurally valid by construction.
-func (a *GofpdfAssembler) AssembleToFile(results <-chan pipeline.RenderResult, outPath string) (int, error) {
+func (a *GofpdfAssembler) AssembleToFile(results <-chan pipeline.RenderResult, outPath string) (int, []string, error) {
 	return a.assemble(results, func(pdf *gofpdf.Fpdf) error {
 		if err := pdf.OutputFileAndClose(outPath); err != nil {
 			return fmt.Errorf("assembler: write output %q: %w", outPath, err)
@@ -44,7 +44,7 @@ func (a *GofpdfAssembler) AssembleToFile(results <-chan pipeline.RenderResult, o
 }
 
 // AssembleToWriter behaves the same as AssembleToFile but writes the PDF output directly to an io.Writer.
-func (a *GofpdfAssembler) AssembleToWriter(results <-chan pipeline.RenderResult, w io.Writer) (int, error) {
+func (a *GofpdfAssembler) AssembleToWriter(results <-chan pipeline.RenderResult, w io.Writer) (int, []string, error) {
 	return a.assemble(results, func(pdf *gofpdf.Fpdf) error {
 		if err := pdf.Output(w); err != nil {
 			return fmt.Errorf("assembler: write stream output: %w", err)
@@ -53,7 +53,7 @@ func (a *GofpdfAssembler) AssembleToWriter(results <-chan pipeline.RenderResult,
 	})
 }
 
-func (a *GofpdfAssembler) assemble(results <-chan pipeline.RenderResult, finish func(*gofpdf.Fpdf) error) (int, error) {
+func (a *GofpdfAssembler) assemble(results <-chan pipeline.RenderResult, finish func(*gofpdf.Fpdf) error) (int, []string, error) {
 	pdf := gofpdf.NewCustom(&gofpdf.InitType{
 		UnitStr:    "mm",
 		Size:       gofpdf.SizeType{Wd: pageW, Ht: pageH},
@@ -66,7 +66,7 @@ func (a *GofpdfAssembler) assemble(results <-chan pipeline.RenderResult, finish 
 	pdf.AddUTF8FontFromBytes(fontFamily, "B", a.boldFont)
 
 	if pdf.Err() {
-		return 0, fmt.Errorf("assembler: gofpdf init error: %s", pdf.Error())
+		return 0, nil, fmt.Errorf("assembler: gofpdf init error: %s", pdf.Error())
 	}
 
 	h := &renderHeap{}
@@ -84,11 +84,15 @@ func (a *GofpdfAssembler) assemble(results <-chan pipeline.RenderResult, finish 
 		return nil
 	}
 
+	var failedAWBs []string
+
 	drainHeap := func() error {
 		for h.Len() > 0 && (*h)[0].Index == nextIndex {
 			r := heap.Pop(h).(pipeline.RenderResult)
 			nextIndex++
-			if r.Err != nil && r.BarcodePNG == nil {
+			if r.Err != nil {
+				failedAWBs = append(failedAWBs, r.Record.AWBNumber)
+				continue
 			}
 			if err := drawPage(r); err != nil {
 				return err
@@ -99,7 +103,7 @@ func (a *GofpdfAssembler) assemble(results <-chan pipeline.RenderResult, finish 
 
 	for r := range results {
 		if r.Err != nil {
-			a.log.Warn("assembler: barcode encode failed, using text fallback",
+			a.log.Warn("assembler: barcode encode failed, skipping record",
 				zap.Int("index", r.Index),
 				zap.String("awb_number", r.Record.AWBNumber),
 				zap.Error(r.Err),
@@ -107,28 +111,32 @@ func (a *GofpdfAssembler) assemble(results <-chan pipeline.RenderResult, finish 
 		}
 		heap.Push(h, r)
 		if err := drainHeap(); err != nil {
-			return 0, err
+			return 0, nil, err
 		}
 	}
 
 	for h.Len() > 0 {
 		r := heap.Pop(h).(pipeline.RenderResult)
 		nextIndex++
+		if r.Err != nil {
+			failedAWBs = append(failedAWBs, r.Record.AWBNumber)
+			continue
+		}
 		if err := drawPage(r); err != nil {
-			return 0, err
+			return 0, nil, err
 		}
 	}
 
-	if drawn == 0 {
-		return 0, fmt.Errorf("assembler: no pages were drawn")
+	if drawn == 0 && len(failedAWBs) == 0 {
+		return 0, nil, fmt.Errorf("assembler: no pages were drawn and no failures recorded") // Edge case if absolutely nothing was passed.
 	}
 
 	if err := finish(pdf); err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 
 	a.log.Info("assembler: complete", zap.Int("pages", drawn))
-	return drawn, nil
+	return drawn, failedAWBs, nil
 }
 
 // drawLabel draws one AWB label page onto the current gofpdf page.
@@ -204,10 +212,6 @@ func drawLabel(pdf *gofpdf.Fpdf, r pipeline.RenderResult) {
 		imgW := contentW * 0.92
 		imgX := marginMM + (contentW-imgW)/2
 		pdf.ImageOptions(rec.AWBNumber, imgX, barcodeY, imgW, barcodeHeightMM, false, imgOpts, 0, "")
-	} else {
-		pdf.SetFont(fontFamily, "B", fontSizeNormal)
-		pdf.SetXY(marginMM, barcodeY)
-		pdf.CellFormat(contentW, barcodeHeightMM, "[BARCODE: "+rec.AWBNumber+"]", "", 0, "C", false, 0, "")
 	}
 	pdf.SetY(barcodeY + barcodeHeightMM)
 

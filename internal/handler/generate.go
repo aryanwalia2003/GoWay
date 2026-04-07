@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"awb-gen/internal/assembler"
 	"awb-gen/internal/assets"
@@ -31,14 +32,18 @@ func HandleGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, failed, err := validatePayload(bodyBytes)
+	_, failedAWBs, err := validatePayload(bodyBytes)
+	failed := len(failedAWBs)
+	if failed > 0 {
+		w.Header().Set("X-Failed-Count", strconv.Itoa(failed))
+		if header := buildFailedAWBsHeader(failedAWBs); header != "" {
+			w.Header().Set("X-Failed-AWBs", header)
+		}
+	}
+
 	if err != nil {
 		handleError(w, err)
 		return
-	}
-
-	if failed > 0 {
-		w.Header().Set("X-Failed-Count", strconv.Itoa(failed))
 	}
 
 	pl := pipeline.New(pipeline.Defaults(), logger.Log)
@@ -51,10 +56,21 @@ func HandleGenerate(w http.ResponseWriter, r *http.Request) {
 	asm := assembler.New(logger.Log, assets.RobotoRegular, assets.RobotoBold)
 
 	var buf bytes.Buffer
-	drawn, err := asm.AssembleToWriter(results, &buf)
+	drawn, renderFailedAWBs, err := asm.AssembleToWriter(results, &buf)
+
+	failedAWBs = append(failedAWBs, renderFailedAWBs...)
+	failed = len(failedAWBs)
+
+	if failed > 0 {
+		w.Header().Set("X-Failed-Count", strconv.Itoa(failed))
+		if header := buildFailedAWBsHeader(failedAWBs); header != "" {
+			w.Header().Set("X-Failed-AWBs", header)
+		}
+	}
+
 	if err != nil {
 		if drawn == 0 {
-			handleError(w, &validationError{errors.New("all records failed validation")})
+			handleError(w, &validationError{errors.New("all records failed rendering")})
 			return
 		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -67,10 +83,28 @@ func HandleGenerate(w http.ResponseWriter, r *http.Request) {
 	w.Write(buf.Bytes())
 }
 
-func validatePayload(body []byte) (int, int, error) {
+func buildFailedAWBsHeader(failed []string) string {
+	if len(failed) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	for i, id := range failed {
+		part := id
+		if i > 0 {
+			part = "," + id
+		}
+		if sb.Len()+len(part) > 4096 {
+			break
+		}
+		sb.WriteString(part)
+	}
+	return sb.String()
+}
+
+func validatePayload(body []byte) (int, []string, error) {
 	dec := json.NewDecoder(bytes.NewReader(body))
 	if err := ensureArrayStart(dec); err != nil {
-		return 0, 0, err
+		return 0, nil, err
 	}
 	return streamRecordsCount(dec)
 }
@@ -87,40 +121,44 @@ func ensureArrayStart(dec *json.Decoder) error {
 	return nil
 }
 
-func streamRecordsCount(dec *json.Decoder) (int, int, error) {
-	count, failed := 0, 0
+func streamRecordsCount(dec *json.Decoder) (int, []string, error) {
+	count := 0
+	var failedAWBs []string
+
 	for dec.More() {
-		if err := decodeAndValidate(dec); err != nil {
+		awbNum, err := decodeAndValidate(dec)
+		if err != nil {
 			var valErr *validationError
 			if errors.As(err, &valErr) {
-				failed++
+				failedAWBs = append(failedAWBs, awbNum)
 				count++
 				continue
 			}
-			return 0, 0, err
+			return 0, nil, err
 		}
 		count++
 	}
 
 	if count == 0 {
-		return 0, 0, errors.New("empty array")
+		return 0, nil, errors.New("empty array")
 	}
+	failed := len(failedAWBs)
 	if count == failed {
-		return count, failed, &validationError{errors.New("all records failed validation")}
+		return count, failedAWBs, &validationError{errors.New("all records failed validation")}
 	}
-	return count, failed, nil
+	return count, failedAWBs, nil
 }
 
-// decodeAndValidate processes a single AWB record.
-func decodeAndValidate(dec *json.Decoder) error {
+// decodeAndValidate processes a single AWB record. Returns the AWBNumber and any error.
+func decodeAndValidate(dec *json.Decoder) (string, error) {
 	var a awb.AWB
 	if err := dec.Decode(&a); err != nil {
-		return err
+		return "", err
 	}
 	if err := a.Validate(); err != nil {
-		return &validationError{err}
+		return a.AWBNumber, &validationError{err}
 	}
-	return nil
+	return a.AWBNumber, nil
 }
 
 // validationError wraps domain validation errors to separate from decode errors.

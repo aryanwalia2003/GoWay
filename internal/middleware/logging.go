@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"awb-gen/internal/logger"
@@ -28,6 +29,11 @@ func Logging(next http.Handler) http.Handler {
 		rec := &loggingRec{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
 
-		logger.LogRequest(traceID, r.Method, r.URL.Path, rec.status, time.Since(start).Milliseconds(), nil)
+		var failedList []string
+		if hdr := rec.Header().Get("X-Failed-AWBs"); hdr != "" {
+			failedList = strings.Split(hdr, ",")
+		}
+
+		logger.LogRequest(traceID, r.Method, r.URL.Path, rec.status, time.Since(start).Milliseconds(), failedList)
 	})
 }
