@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"container/heap"
 	"fmt"
+	"io"
 	"strings"
 
 	"awb-gen/internal/pipeline"
@@ -13,11 +14,11 @@ import (
 )
 
 const (
-	fontFamily  = "roboto"
-	marginMM    = 4.0
+	fontFamily = "roboto"
+	marginMM   = 4.0
 	// A6 landscape: 148mm wide × 105mm tall
-	pageW       = 148.0
-	pageH       = 105.0
+	pageW = 148.0
+	pageH = 105.0
 
 	fontSizeTitle  = 9.0
 	fontSizeNormal = 7.0
@@ -34,15 +35,33 @@ const (
 // Each page costs: one AddPage() + a handful of Cell/Image calls.
 // No pdfcpu. No xref merging. No temp files. Structurally valid by construction.
 func (a *GofpdfAssembler) AssembleToFile(results <-chan pipeline.RenderResult, outPath string) (int, error) {
+	return a.assemble(results, func(pdf *gofpdf.Fpdf) error {
+		if err := pdf.OutputFileAndClose(outPath); err != nil {
+			return fmt.Errorf("assembler: write output %q: %w", outPath, err)
+		}
+		return nil
+	})
+}
+
+// AssembleToWriter behaves the same as AssembleToFile but writes the PDF output directly to an io.Writer.
+func (a *GofpdfAssembler) AssembleToWriter(results <-chan pipeline.RenderResult, w io.Writer) (int, error) {
+	return a.assemble(results, func(pdf *gofpdf.Fpdf) error {
+		if err := pdf.Output(w); err != nil {
+			return fmt.Errorf("assembler: write stream output: %w", err)
+		}
+		return nil
+	})
+}
+
+func (a *GofpdfAssembler) assemble(results <-chan pipeline.RenderResult, finish func(*gofpdf.Fpdf) error) (int, error) {
 	pdf := gofpdf.NewCustom(&gofpdf.InitType{
-		UnitStr:  "mm",
-		Size:     gofpdf.SizeType{Wd: pageW, Ht: pageH},
+		UnitStr:    "mm",
+		Size:       gofpdf.SizeType{Wd: pageW, Ht: pageH},
 		FontDirStr: "",
 	})
 	pdf.SetMargins(marginMM, marginMM, marginMM)
 	pdf.SetAutoPageBreak(false, 0)
 
-	// Register fonts once for the entire batch.
 	pdf.AddUTF8FontFromBytes(fontFamily, "", a.regularFont)
 	pdf.AddUTF8FontFromBytes(fontFamily, "B", a.boldFont)
 
@@ -55,8 +74,6 @@ func (a *GofpdfAssembler) AssembleToFile(results <-chan pipeline.RenderResult, o
 	nextIndex := 0
 	drawn := 0
 
-	// pending holds results that are ready to draw (nextIndex matches) in order.
-	// We process them immediately after draining the heap.
 	drawPage := func(r pipeline.RenderResult) error {
 		pdf.AddPage()
 		if pdf.Err() {
@@ -72,7 +89,6 @@ func (a *GofpdfAssembler) AssembleToFile(results <-chan pipeline.RenderResult, o
 			r := heap.Pop(h).(pipeline.RenderResult)
 			nextIndex++
 			if r.Err != nil && r.BarcodePNG == nil {
-				// barcode failed but record is valid — drawLabel handles fallback
 			}
 			if err := drawPage(r); err != nil {
 				return err
@@ -95,7 +111,6 @@ func (a *GofpdfAssembler) AssembleToFile(results <-chan pipeline.RenderResult, o
 		}
 	}
 
-	// Channel closed — drain remainder.
 	for h.Len() > 0 {
 		r := heap.Pop(h).(pipeline.RenderResult)
 		nextIndex++
@@ -108,8 +123,8 @@ func (a *GofpdfAssembler) AssembleToFile(results <-chan pipeline.RenderResult, o
 		return 0, fmt.Errorf("assembler: no pages were drawn")
 	}
 
-	if err := pdf.OutputFileAndClose(outPath); err != nil {
-		return 0, fmt.Errorf("assembler: write output %q: %w", outPath, err)
+	if err := finish(pdf); err != nil {
+		return 0, err
 	}
 
 	a.log.Info("assembler: complete", zap.Int("pages", drawn))

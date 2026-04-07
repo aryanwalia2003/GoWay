@@ -1,17 +1,23 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 
+	"awb-gen/internal/assembler"
+	"awb-gen/internal/assets"
 	"awb-gen/internal/awb"
+	"awb-gen/internal/logger"
+	"awb-gen/internal/pipeline"
 )
 
 const maxPayloadSize = 2 << 20 // 2MB
 
-// HandleGenerate processes AWB batches using streaming.
+// HandleGenerate processes AWB batches using streaming but buffers the PDF.
 func HandleGenerate(w http.ResponseWriter, r *http.Request) {
 	if r.Body == nil || r.ContentLength == 0 {
 		http.Error(w, "empty body", http.StatusBadRequest)
@@ -19,18 +25,54 @@ func HandleGenerate(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxPayloadSize)
 
-	if err := processStream(w, r.Body); err != nil {
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
 		handleError(w, err)
+		return
 	}
+
+	_, failed, err := validatePayload(bodyBytes)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	if failed > 0 {
+		w.Header().Set("X-Failed-Count", strconv.Itoa(failed))
+	}
+
+	pl := pipeline.New(pipeline.Defaults(), logger.Log)
+	results, err := pl.Run(r.Context(), bytes.NewReader(bodyBytes))
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	asm := assembler.New(logger.Log, assets.RobotoRegular, assets.RobotoBold)
+
+	var buf bytes.Buffer
+	drawn, err := asm.AssembleToWriter(results, &buf)
+	if err != nil {
+		if drawn == 0 {
+			handleError(w, &validationError{errors.New("all records failed validation")})
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
+	w.WriteHeader(http.StatusOK)
+	w.Write(buf.Bytes())
 }
 
-// processStream orchestrates the JSON array decoding.
-func processStream(w http.ResponseWriter, body io.ReadCloser) error {
-	dec := json.NewDecoder(body)
+func validatePayload(body []byte) (int, int, error) {
+	dec := json.NewDecoder(bytes.NewReader(body))
 	if err := ensureArrayStart(dec); err != nil {
-		return err
+		return 0, 0, err
 	}
-	return streamRecords(w, dec)
+	return streamRecordsCount(dec)
 }
 
 // ensureArrayStart expects the first token to be '['.
@@ -45,8 +87,7 @@ func ensureArrayStart(dec *json.Decoder) error {
 	return nil
 }
 
-// streamRecords decodes and validates objects until the array ends.
-func streamRecords(w http.ResponseWriter, dec *json.Decoder) error {
+func streamRecordsCount(dec *json.Decoder) (int, int, error) {
 	count, failed := 0, 0
 	for dec.More() {
 		if err := decodeAndValidate(dec); err != nil {
@@ -56,19 +97,18 @@ func streamRecords(w http.ResponseWriter, dec *json.Decoder) error {
 				count++
 				continue
 			}
-			return err
+			return 0, 0, err
 		}
 		count++
 	}
 
 	if count == 0 {
-		return errors.New("empty array")
+		return 0, 0, errors.New("empty array")
 	}
 	if count == failed {
-		return &validationError{errors.New("all records failed validation")}
+		return count, failed, &validationError{errors.New("all records failed validation")}
 	}
-	w.WriteHeader(http.StatusOK)
-	return nil
+	return count, failed, nil
 }
 
 // decodeAndValidate processes a single AWB record.
