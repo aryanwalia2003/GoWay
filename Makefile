@@ -2,8 +2,10 @@ APP     := awb-gen
 GO      := go
 FIXTURE := testdata/bench_5000.json
 OUTPDF  := /tmp/awb-bench-out.pdf
+PORT     ?= 8080
+API_KEYS ?= my-secret-key
 
-.PHONY: all build race test bench bench-mem profile-cpu profile-mem \
+.PHONY: all build race serve test bench bench-mem profile-cpu profile-mem \
         fixture clean fmt vet lint tidy
 
 # ── Default ──────────────────────────────────────────────────────────────────
@@ -12,6 +14,9 @@ all: tidy fmt vet build test
 # ── Build ────────────────────────────────────────────────────────────────────
 build:
 	$(GO) build -v -trimpath -o $(APP) main.go
+
+serve: build
+	API_KEYS=$(API_KEYS) ./$(APP) serve --port $(PORT)
 
 # Build with race detector enabled — use for development only; ~5-10× slower.
 race:
