@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"syscall"
 
+	"awb-gen/internal/assembler"
 	"awb-gen/internal/handler"
 	"awb-gen/internal/logger"
 	"awb-gen/internal/middleware"
@@ -37,6 +38,10 @@ var serveCmd = &cobra.Command{
 		concurrencyMiddleware := middleware.NewConcurrency(concurrencyLimit)
 
 		mux.HandleFunc("/generate", middleware.Logging(authMiddleware(concurrencyMiddleware.Wrap(genHandler))).ServeHTTP)
+
+		latexAssembler := assembler.NewLaTeXAssembler("./tectonic", "./templates", concurrencyLimit)
+		latexHandler := handler.NewLaTeXHandler(latexAssembler)
+		mux.HandleFunc("/render/forward-shipping-label", middleware.Logging(authMiddleware(concurrencyMiddleware.Wrap(latexHandler))).ServeHTTP)
 
 		addr := fmt.Sprintf(":%d", port)
 		srv := server.NewServer(addr, mux)

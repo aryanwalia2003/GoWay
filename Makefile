@@ -102,3 +102,9 @@ clean:
 	rm -f coverage.out coverage.html
 	rm -rf pprof/
 	rm -rf testdata/
+
+# ── Production Samples ───────────────────────────────────────────────────────
+generate-uc-label:
+	@echo "Generating UC Shipping Label production sample..."
+	@go run scripts/generate_sample.go
+	@echo "Done! check uc_label_sample.pdf"
