@@ -1,0 +1,145 @@
+\documentclass[10pt, a4paper]{article}
+
+% --- Packages ---
+\usepackage[margin=0.5cm]{geometry}   % Ultra-slim margins
+\usepackage{graphicx}
+\usepackage{tcolorbox}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+% Remove paragraph indentation
+\setlength{\parindent}{0pt}
+
+% Silence undefined macro warnings
+\newcommand{\defifundefined}[1]{%
+  \ifcsname #1\endcsname\else\expandafter\def\csname #1\endcsname{}\fi%
+}
+
+% Fallback definitions for every expected field
+\defifundefined{customerName}
+\defifundefined{address}
+\defifundefined{phone}
+\defifundefined{paymentMode}
+\defifundefined{collectibleAmount}
+\defifundefined{zippeeAwb}
+\defifundefined{invoiceDate}
+\defifundefined{invoiceValue}
+\defifundefined{referenceCode}
+\defifundefined{brandName}
+\defifundefined{shipperAddress}
+\defifundefined{returnAddress}
+\defifundefined{customerSupport}
+\defifundefined{dimensions}
+\defifundefined{weight}
+
+\begin{document}
+\pagestyle{empty}
+
+% --- Invoice Container ---
+\begin{tcolorbox}[
+    colback=white, 
+    colframe=black, 
+    sharp corners, 
+    boxrule=1.2pt, 
+    width=\textwidth, 
+    center, 
+    boxsep=5mm, 
+    left=5mm, right=5mm, top=5mm, bottom=5mm
+]
+
+% 1. Header Section
+\begin{center}
+    \IfFileExists{zippee_logo.png}{
+        \includegraphics[width=3cm, height=3cm, keepaspectratio=false]{zippee_logo.png}
+    }{}
+    {\LARGE \textbf{www.zippee.delivery}}
+\end{center}
+\vspace{2mm}\hrule\vspace{4mm}
+
+% 2. Addresses Section
+\begin{minipage}[t]{0.55\textwidth}
+    {\large \textbf{Delivery Address}}\par\vspace{2mm}
+    \textbf{\customerName}\\
+    \address\\
+    \phone
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.4\textwidth}
+    \raggedleft
+    {\large \textbf{Payment Mode}}\par\vspace{2mm}
+    \textbf{\paymentMode}\par\vspace{1mm}
+    Collectible Amount - \collectibleAmount
+\end{minipage}
+\vspace{4mm}\hrule\vspace{4mm}
+
+% 3. Zippee AWB Barcode
+\begin{minipage}[c]{0.3\textwidth}
+    \LARGE \zippeeAwb
+\end{minipage}%
+\hfill
+\begin{minipage}[c]{0.65\textwidth}
+    \raggedleft
+    \IfFileExists{barcodeZippeeawb.png}{%
+        \includegraphics[width=\linewidth, height=3cm, keepaspectratio=false]{barcodeZippeeawb.png}%
+    }{%
+        \fbox{\rule{0pt}{3cm} \rule{8cm}{0pt} Barcode Missing}%
+    }
+\end{minipage}
+\vspace{4mm}\hrule\vspace{4mm}
+
+% 4. Invoice Details
+\begin{minipage}[t]{\textwidth}
+    \textbf{Invoice Date:} \invoiceDate \hfill \textbf{Invoice Value:} Rs. \invoiceValue
+\end{minipage}
+\vspace{4mm}\hrule\vspace{4mm}
+
+% 5. Reference Code Barcode
+\begin{minipage}[c]{0.3\textwidth}
+    \centering
+    \referenceCode\par\vspace{2mm}
+    \brandName
+\end{minipage}%
+\hfill
+\begin{minipage}[c]{0.65\textwidth}
+    \raggedleft
+    \IfFileExists{barcodeRefcode.png}{%
+        \includegraphics[width=\linewidth, height=3cm, keepaspectratio=false]{barcodeRefcode.png}%
+    }{%
+        \fbox{\rule{0pt}{3cm} \rule{8cm}{0pt} Barcode Missing}%
+    }
+\end{minipage}
+\vspace{4mm}\hrule\vspace{4mm}
+
+% 6. Shipper and Return Address
+\begin{minipage}[t]{0.48\textwidth}
+    \textbf{Shipper Address}\par\vspace{2mm}
+    \shipperAddress
+\end{minipage}%
+\hfill \vrule \hfill 
+\begin{minipage}[t]{0.48\textwidth}
+    \textbf{Return Address}\par\vspace{2mm}
+    \returnAddress\par\vspace{2mm}
+    \textbf{Customer Support:} \customerSupport
+\end{minipage}
+\vspace{4mm}\hrule\vspace{4mm}
+
+% 7. Dimensions & Taxes
+\begin{minipage}[t]{0.6\textwidth}
+    \textbf{Dimensions (cms):} \dimensions\par\vspace{2mm}
+    \textbf{Weight (grams):} \weight
+\end{minipage}%
+\hfill
+\begin{minipage}[b]{0.35\textwidth}
+    \raggedleft
+    \small \textit{inclusive of all taxes}
+\end{minipage}
+\vspace{6mm}
+
+% 8. Footer
+\begin{center}
+    {\Huge \textbf{Do not accept the Open / Tampered Packaging}}
+\end{center}
+
+\end{tcolorbox}
+
+\end{document}
