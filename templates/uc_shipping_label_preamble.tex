@@ -1,0 +1,38 @@
+\documentclass[10pt, a4paper]{article}
+
+% --- Packages ---
+\usepackage[margin=0.5cm]{geometry}   % Ultra-slim margins
+\usepackage{graphicx}
+\usepackage{tcolorbox}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{svg}
+
+\usepackage[T1]{fontenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+
+% Remove paragraph indentation
+\setlength{\parindent}{0pt}
+
+% Silence undefined macro warnings
+\newcommand{\defifundefined}[1]{%
+  \ifcsname #1\endcsname\else\expandafter\def\csname #1\endcsname{}\fi%
+}
+
+% Fallback definitions for every expected field
+\defifundefined{customerName}
+\defifundefined{address}
+\defifundefined{phone}
+\defifundefined{paymentMode}
+\defifundefined{collectibleAmount}
+\defifundefined{zippeeAwb}
+\defifundefined{invoiceDate}
+\defifundefined{invoiceValue}
+\defifundefined{referenceCode}
+\defifundefined{brandName}
+\defifundefined{shipperAddress}
+\defifundefined{returnAddress}
+\defifundefined{customerSupport}
+\defifundefined{dimensions}
+\defifundefined{weight}
