@@ -6,6 +6,11 @@
 \usepackage{tcolorbox}
 \usepackage{hyperref}
 \usepackage{xcolor}
+\usepackage{svg}
+
+\usepackage[T1]{fontenc}
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
 
 % Remove paragraph indentation
 \setlength{\parindent}{0pt}
@@ -49,10 +54,16 @@
 
 % 1. Header Section
 \begin{center}
-    \IfFileExists{zippee_logo.png}{
-        \includegraphics[width=3cm, height=3cm, keepaspectratio=false]{zippee_logo.png}
-    }{}
-    {\LARGE \textbf{www.zippee.delivery}}
+    \IfFileExists{zippee_logo.svg}{
+        \includesvg[width=4cm, height=1.5cm]{zippee_logo.svg}\par\vspace{1mm}
+    }{
+        \IfFileExists{zippee_logo.png}{
+            \includegraphics[width=3cm, height=1cm, keepaspectratio=true]{zippee_logo.png}\par\vspace{1mm}
+        }{
+            \textbf{\huge Zippee}\par\vspace{1mm}
+        }
+    }
+    \textcolor{blue}{\href{https://www.zippee.delivery}{www.zippee.delivery}}
 \end{center}
 \vspace{2mm}\hrule\vspace{4mm}
 
@@ -73,23 +84,19 @@
 \vspace{4mm}\hrule\vspace{4mm}
 
 % 3. Zippee AWB Barcode
-\begin{minipage}[c]{0.3\textwidth}
-    \LARGE \zippeeAwb
-\end{minipage}%
-\hfill
-\begin{minipage}[c]{0.65\textwidth}
-    \raggedleft
+\begin{center}
     \IfFileExists{barcodeZippeeawb.png}{%
-        \includegraphics[width=\linewidth, height=3cm, keepaspectratio=false]{barcodeZippeeawb.png}%
+        \includegraphics[width=0.85\linewidth, height=3.2cm, keepaspectratio=false]{barcodeZippeeawb.png}%
     }{%
-        \fbox{\rule{0pt}{3cm} \rule{8cm}{0pt} Barcode Missing}%
-    }
-\end{minipage}
+        \fbox{\rule{0pt}{3.2cm} \rule{8cm}{0pt} Barcode Missing}%
+    }\par\vspace{2mm}
+    {\LARGE \textbf{\zippeeAwb}}
+\end{center}
 \vspace{4mm}\hrule\vspace{4mm}
 
 % 4. Invoice Details
 \begin{minipage}[t]{\textwidth}
-    \textbf{Invoice Date:} \invoiceDate \hfill \textbf{Invoice Value:} Rs. \invoiceValue
+    \textbf{Invoice Date:} \invoiceDate \hfill \textbf{Invoice Value:} ₹ \invoiceValue
 \end{minipage}
 \vspace{4mm}\hrule\vspace{4mm}
 
@@ -101,12 +108,13 @@
 \end{minipage}%
 \hfill
 \begin{minipage}[c]{0.65\textwidth}
-    \raggedleft
+    \centering
     \IfFileExists{barcodeRefcode.png}{%
-        \includegraphics[width=\linewidth, height=3cm, keepaspectratio=false]{barcodeRefcode.png}%
+        \includegraphics[width=\linewidth, height=2.8cm, keepaspectratio=false]{barcodeRefcode.png}%
     }{%
-        \fbox{\rule{0pt}{3cm} \rule{8cm}{0pt} Barcode Missing}%
-    }
+        \fbox{\rule{0pt}{2.8cm} \rule{8cm}{0pt} Barcode Missing}%
+    }\par\vspace{2mm}
+    {\huge \textbf{\referenceCode}}
 \end{minipage}
 \vspace{4mm}\hrule\vspace{4mm}
 
@@ -137,7 +145,7 @@
 
 % 8. Footer
 \begin{center}
-    {\Huge \textbf{Do not accept the Open / Tampered Packaging}}
+    {\large \textbf{Do not accept the Open / Tampered Packaging}}
 \end{center}
 
 \end{tcolorbox}
