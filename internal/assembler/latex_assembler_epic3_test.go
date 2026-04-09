@@ -23,7 +23,7 @@ func TestLaTeXAssembler_ConcurrencyAndTimeout(t *testing.T) {
 			defer wg.Done()
 			_, err := assembler.Assemble(ctx, "hello_world", nil)
 			// The timeout should forcefully kill these within ~60ms
-			if err == nil || !strings.Contains(err.Error(), "timeout") && !strings.Contains(err.Error(), "killed") {
+			if err == nil || !strings.Contains(err.Error(), "timeout") && !strings.Contains(err.Error(), "killed") && !strings.Contains(err.Error(), "deadline") {
 				t.Errorf("Expected context deadline/killed error on local tests taking >60ms, got: %v", err)
 			}
 		}(i)
