@@ -65,7 +65,8 @@ func RenderBarcodePNG(renderer Renderer, content string) ([]byte, error) {
 
 	buf := PngBufPool.Get().(*bytes.Buffer)
 	buf.Reset()
-	if err := png.Encode(buf, img); err != nil {
+	encoder := png.Encoder{CompressionLevel: png.NoCompression}
+	if err := encoder.Encode(buf, img); err != nil {
 		PngBufPool.Put(buf)
 		return nil, fmt.Errorf("RenderBarcodePNG png.Encode: %w", err)
 	}

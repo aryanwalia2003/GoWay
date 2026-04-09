@@ -8,39 +8,39 @@ Benchmarks were conducted on an **8-core CPU** using the `BenchmarkAssembleUCShi
 
 | Metric | Sequential | Parallel (8 Workers) |
 |---|---|---|
-| **Latency** | **931 ms/op** | **407 ms/op** |
-| **Throughput** | **~1.07 labels/s** | **~19.65 labels/s** |
+| **Latency (Baseline)** | 931 ms/op | 407 ms/op |
+| **Latency (Pre-compiled Preamble)** | **775 ms/op** | **369 ms/op** |
+| **Throughput** | **~1.29 labels/s** | **~21.6 labels/s** |
 
 > [!NOTE]
-> The adoption of Tectonic Daemon Mode has eliminated OS-level process-spawning jitter, increasing parallel throughput by **~7x** compared to the baseline (~2.78 labels/s).
+> Moving from stdin pipeline to Tectonic V2 Project Mode (TOML) eliminated redundant preamble parsing, dropping latency by ~20% per request.
 
 ---
 
-## 🧠 Memory Bottlenecks (Go Heap)
+## 🧠 Memory Optimization (Go Heap)
 
-The following functions account for over **85% of total memory allocations** within the Go service during label generation.
+With caching removed and `png.NoCompression` enabled, memory allocations remain high per operation because Go's standard library statically allocates large stream buffers for `zlib` regardless of the compression level choice.
 
-1.  **`compress/flate.NewWriter` (50.2%)**: High allocation rate due to PNG encoding of generated barcodes.
-2.  **`image.NewNRGBA` (15.3%)**: Memory required for raw image buffer allocation during barcode generation.
-3.  **`compress/flate.initDeflate` (15.2%)**: Initialization costs for the DEFLATE compression algorithm used in PNGs.
+| State | Memory / Op | Allocations / Op |
+|---|---|---|
+| **Baseline** | ~2,142 KB | ~372 |
+| **Optimized (No Compression)** | **~2,168 KB** | **~357** |
 
----
-
-## ⚡ CPU Bottlenecks
-
-1.  **Syscall / External Process Wait (99%)**: Despite the warm pool, the Go runtime spends the vast majority of its time waiting for the persistent `tectonic` binary to finalize compilation.
-2.  **PNG Filter & Compression**: The only significant Go-side CPU consumer, accounting for ~40ms of active processing time per label.
+**Remaining Hotspots:**
+1.  **PNG Encoding (zlib stream buffers)**: `image/png.Encode` unconditionally spins up 512KB dict buffers for streaming out blocks, dominating heap allocations.
 
 ---
 
-### 🚀 Barcode Caching (Implemented)
-By introducing a thread-safe `barcode.Cache`, memory allocations plummeted by **~55%** (from ~2.16MB to ~956KB per operation), significantly reducing GC pressure.
+## ⚡ CPU Analysis
+
+1.  **Tectonic Compilation (99%+)**: The Go service is nearly 100% efficient, spent entirely waiting for the external Tectonic process.
+2.  **PNG Encoding**: Bypassing compression (`png.NoCompression`) avoids DEFLATE cycle overhead, ensuring immediate flush of barcode pixels to byte buffers.
+
+---
 
 ## 🛠 Next Optimization Target
 
-To further optimize throughput:
-
-1.  **Syscall Pooling / Ramdisk**: If Tectonic's compilation times remain a bottleneck, writing the `.tex` and `.pdf` files to a `tmpfs` ramdisk can shave off IO latency.
+1.  **Sync.Pool for Zlib Writers**: If memory allocation becomes a catastrophic scaling issue under infinite unique traffic, implement a `sync.Pool` wrapping custom PNG encoders or adopt `klauspost/compress`.
 2.  **Pre-compiled Preamble (Experimental)**: Re-visit `.fmt` files if standard TeX Live is introduced or explore Tectonic V2 session persistence for shared preamble state.
 
 ---

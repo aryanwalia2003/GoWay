@@ -10,6 +10,7 @@ import (
 
 func TestLaTeXAssembler_ConcurrencyAndTimeout(t *testing.T) {
 	assembler := NewLaTeXAssembler("../../tectonic", "../../templates", 2)
+	assembler.HardCap = 1 * time.Millisecond
 
 	ctx := context.Background()
 	var wg sync.WaitGroup
