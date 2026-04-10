@@ -1,9 +1,10 @@
 module awb-gen
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/boombuler/barcode v1.1.0
+	github.com/carlos7ags/folio v0.6.2
 	github.com/goccy/go-json v0.10.6
 	github.com/google/uuid v1.6.0
 	github.com/pdfcpu/pdfcpu v0.11.1
@@ -25,8 +26,9 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/crypto v0.43.0 // indirect
-	golang.org/x/image v0.32.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/crypto v0.49.0 // indirect
+	golang.org/x/image v0.38.0 // indirect
+	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
