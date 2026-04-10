@@ -33,3 +33,51 @@ awb-gen
 awb-gen-race
 *.txt
 *.tar.*
+tectonic.*
+*.png
+*.tex
+
+
+# --- Build & Binaries ---
+/awb-gen
+/awb-gen-race
+/awb-gen.exe
+/tectonic
+*.test
+*.prof
+*.pprof
+*.trace
+
+# --- LaTeX & Rendering ---
+*.pdf
+*.log
+*.tar.*
+/output/
+
+# --- Assets ---
+# Too large for VCS; use scripts/download_fonts.sh
+internal/assets/fonts/*.ttf
+
+# --- JSON/Data (Sensitive or Temp) ---
+# Better to ignore specific temp patterns than all JSON
+/testdata/bench_*.json
+/golden_three.json
+/malformed_mixed.json
+/sample.json
+# If you really want to ignore all JSON EXCEPT specific ones:
+# *.json
+# !config.json
+
+# --- Documentation & Context ---
+*-context-*.txt
+coverage.out
+coverage.html
+
+# --- OS & IDE ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Dependency Management ---
+/vendor/

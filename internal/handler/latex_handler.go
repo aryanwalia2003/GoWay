@@ -57,9 +57,7 @@ func decodeRenderRequest(body io.Reader) (*renderRequest, error) {
 }
 
 func (h *LaTeXHandler) render(w http.ResponseWriter, r *http.Request, req *renderRequest) {
-	payload, _ := json.Marshal(req.Data)
-
-	pdfBytes, err := h.assembler.Assemble(r.Context(), req.TemplateID, payload)
+	pdfBytes, err := h.assembler.Assemble(r.Context(), req.TemplateID, req.Data)
 	if err != nil {
 		writeRenderError(w, err)
 		return
@@ -86,6 +84,6 @@ func writePDFResponse(w http.ResponseWriter, pdf []byte) {
 }
 
 type renderRequest struct {
-	TemplateID string                 `json:"template_id"`
-	Data       map[string]interface{} `json:"data"`
+	TemplateID string          `json:"template_id"`
+	Data       json.RawMessage `json:"data"`
 }

@@ -12,7 +12,7 @@ import (
 // Log is the global logger instance. It is initialised by InitLogger before
 // any pipeline work begins, then read-only for the rest of the process
 // lifetime — safe to access from any goroutine without synchronisation.
-var Log *zap.Logger
+var Log *zap.Logger = zap.NewNop()
 
 // InitLogger constructs and installs the global zap logger.
 //

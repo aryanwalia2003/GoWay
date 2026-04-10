@@ -6,11 +6,15 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func MapToMacros(jsonPayload []byte) (string, error) {
+func MapParsedToMacros(parsed gjson.Result) (string, error) {
 	var builder strings.Builder
-	parsed := gjson.ParseBytes(jsonPayload)
 	parseJSONNode("", parsed, &builder)
 	return builder.String(), nil
+}
+
+func MapToMacros(jsonPayload []byte) (string, error) {
+	parsed := gjson.ParseBytes(jsonPayload)
+	return MapParsedToMacros(parsed)
 }
 
 func parseJSONNode(prefix string, node gjson.Result, builder *strings.Builder) {
@@ -32,10 +36,11 @@ func makeKey(prefix, key string) string {
 	return prefix + strings.ToUpper(key[:1]) + key[1:]
 }
 
+var latexEscaper = strings.NewReplacer(
+	"%", "\\%", "$", "\\$", "&", "\\&", "#", "\\#",
+	"_", "\\_", "{", "\\{", "}", "\\}",
+)
+
 func escapeLaTeX(val string) string {
-	replacer := strings.NewReplacer(
-		"%", "\\%", "$", "\\$", "&", "\\&", "#", "\\#",
-		"_", "\\_", "{", "\\{", "}", "\\}",
-	)
-	return replacer.Replace(val)
+	return latexEscaper.Replace(val)
 }
