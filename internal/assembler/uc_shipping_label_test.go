@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestUCShippingLabel_EndToEnd(t *testing.T) {
@@ -29,8 +28,7 @@ func TestUCShippingLabel_EndToEnd(t *testing.T) {
 		"barcodeRefcode": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 	}`)
 
-	a := NewLaTeXAssembler("../../tectonic", "../../templates", 4)
-	a.HardCap = 30 * time.Second
+	a := NewFolioAssembler("../../templates")
 
 	pdfBytes, err := a.Assemble(context.Background(), "uc_shipping_label", payload)
 	if err != nil {
@@ -51,8 +49,7 @@ func TestUCShippingLabel_MissingFieldsRendersGracefully(t *testing.T) {
 		"zippeeAwb": "ZP000000001IN"
 	}`)
 
-	a := NewLaTeXAssembler("../../tectonic", "../../templates", 4)
-	a.HardCap = 30 * time.Second
+	a := NewFolioAssembler("../../templates")
 
 	pdfBytes, err := a.Assemble(context.Background(), "uc_shipping_label", payload)
 	if err != nil {
@@ -72,8 +69,7 @@ func TestUCShippingLabel_SpecialCharsEscaped(t *testing.T) {
 		"zippeeAwb": "ZP-SPECIAL-IN"
 	}`)
 
-	a := NewLaTeXAssembler("../../tectonic", "../../templates", 4)
-	a.HardCap = 30 * time.Second
+	a := NewFolioAssembler("../../templates")
 
 	_, err := a.Assemble(context.Background(), "uc_shipping_label", payload)
 	if err != nil && strings.Contains(err.Error(), "fatal") {
@@ -108,8 +104,7 @@ func TestUCShippingLabel_MissingBarcodeBase64_AutoGenerates(t *testing.T) {
 		"weight": "500"
 	}`)
 
-	a := NewLaTeXAssembler("../../tectonic", "../../templates", 4)
-	a.HardCap = 30 * time.Second
+	a := NewFolioAssembler("../../templates")
 
 	pdfBytes, err := a.Assemble(context.Background(), "uc_shipping_label", payload)
 	if err != nil {

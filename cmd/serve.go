@@ -29,7 +29,7 @@ var serveCmd = &cobra.Command{
 		genHandler := http.HandlerFunc(handler.HandleGenerate)
 		authMiddleware := middleware.Auth(os.Getenv("API_KEYS"))
 
-		concurrencyLimit := 100
+		concurrencyLimit := 4
 		if val := os.Getenv("CONCURRENCY_LIMIT"); val != "" {
 			if parsed, err := strconv.Atoi(val); err == nil {
 				concurrencyLimit = parsed
