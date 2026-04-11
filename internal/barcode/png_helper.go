@@ -10,7 +10,7 @@ import (
 
 const (
 	BarcodeBarWidthPx  = 3
-	BarcodeImgHeightPx = 72
+	BarcodeImgHeightPx = 150
 	BarcodePaddingPx   = 6
 )
 

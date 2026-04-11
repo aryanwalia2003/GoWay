@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"os"
 	"path/filepath"
 
@@ -36,7 +37,16 @@ func (a *FolioAssembler) Assemble(ctx context.Context, templateID string, payloa
 		data = make(map[string]any)
 	}
 
-	// 2. Generate barcodes if missing
+	// 2. Inject logo as base64 data URI if not already set
+	if _, ok := data["zippeeLogo"]; !ok {
+		logoPath := filepath.Join(a.templateDir, "zippee_logo_new.jpeg")
+		if logoBytes, err := os.ReadFile(logoPath); err == nil {
+			// Use template.URL to mark the data URI as safe so html/template doesn't sanitize it
+			data["zippeeLogo"] = template.URL("data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(logoBytes))
+		}
+	}
+
+	// 3. Generate barcodes if missing
 	if a.BarcodeRend != nil {
 		if _, ok := data["barcodeZippeeawb"]; !ok {
 			if val, ok := data["zippeeAwb"].(string); ok && val != "" {

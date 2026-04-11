@@ -3,54 +3,55 @@
 
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Invoice</title>
-    <!-- Avoid remote fonts: WeasyPrint fetches these synchronously and adds ~1s+ per label. -->
     <style>
         @page {
             size: A4;
-            margin: 30px;
+            margin: 20px;
         }
 
         body {
-            font-family: "DejaVu Sans", DejaVu Sans, sans-serif;
-            line-height: 1.4;
-            font-size: small;
+            font-family: "DejaVu Sans", Helvetica, Arial, sans-serif;
+            line-height: 1.3;
+            font-size: 11px;
+            color: #000;
+            margin: 0;
+            padding: 0;
         }
 
         .invoice-container {
-            width: 90%;
-            max-width: 900px;
-            margin: auto;
+            width: 100%;
+            max-width: 750px;
+            margin: 0 auto;
             border: 1px solid #000;
-            padding: 20px;
+            box-sizing: border-box;
+            padding: 20px 25px;
         }
 
-        .header,
-        .footer {
-            text-align: center;
-            padding-bottom: 10px;
-        }
-
+        /* --- Header (FIXED CENTERING) --- */
         .header {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            padding-bottom: 12px;
+            width: 100%;
         }
 
-        .header h2 {
-            margin: 0 0 5px 0;
-            font-weight: bold;
+        .zippee_logo {
+            width: 120px;
+            margin-bottom: 5px;
         }
 
-        a {
+        .header a {
             color: rgb(2, 2, 162);
+            text-decoration: none;
+            font-size: 12px;
         }
 
+        /* --- Sections & Layout --- */
         .section {
-            border-bottom: 1px solid #000;
-            padding: 8px 0;
+            border-top: 1px solid #000;
+            padding: 10px 0;
         }
 
         .row {
@@ -58,179 +59,206 @@
             justify-content: space-between;
         }
 
-        .column {
+        .col-left {
             flex: 1;
+            text-align: left;
+            padding-right: 10px;
         }
 
-        .details-table {
-            line-height: 1;
+        .col-right {
+            flex: 1;
+            text-align: right;
+            padding-left: 10px;
         }
 
-        .details-table-row {
-            display: flex;
-            align-items: center;
-            width: 100%;
-            justify-content: space-between;
-            gap: 20px;
+        .col-half {
+            flex: 1;
+            text-align: left;
+            padding-right: 10px;
         }
 
-        .details-table-row p {
-            margin: 5px 0;
-        }
-
-        .barcode {
-            text-align: center;
-            margin-top: 10px;
-        }
-
-        .divider {
-            border-left: 1px solid #000;
-            padding-left: 20px;
-        }
-
-        .section-title {
-            font-weight: 600;
-        }
-
-        .strong {
+        /* --- Typography --- */
+        .title {
+            font-size: 11px;
             font-weight: bold;
+            margin-bottom: 4px;
         }
 
-        .text-center {
-            text-align: center;
-        }
-
-        .barcode_section {
-            justify-content: right;
-            gap: 60px;
-        }
-
-        .barcode_section img {
-            width: 450px;
-            height: 180px;
-        }
-
-        .dimensions-weight {
-            position: relative;
-        }
-
-        .taxes-tag {
-            position: absolute;
+        .value-bold {
             font-size: 12px;
-            bottom: -20px;
+            font-weight: bold;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+        }
+
+        .text-sm {
+            font-size: 11px;
+            margin-bottom: 2px;
+        }
+
+        /* --- Barcode Specifics (FIXED ALIGNMENT) --- */
+        .barcode-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 15px 0;
+            border-top: 1px solid #000;
+        }
+
+        .barcode-left {
+            width: 30%;
+            font-size: 11px;
+            padding-top: 5px;
+        }
+
+        .barcode-right {
+            width: 70%;
+            display: flex;
+            justify-content: flex-end;
+            /* Forces inner wrapper to the far right */
+        }
+
+        .barcode-inner {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            /* Centers the text directly under the image */
+            width: 340px;
+            /* Fixed width ensures perfect centering */
+        }
+
+        .barcode-inner img {
+            width: 340px;
+            height: 105px;
+            /* Strict dimensions force the barcode to stretch across the 340px box */
+        }
+
+        .barcode-text {
+            font-size: 22px;
+            letter-spacing: 5px;
+            margin-top: 6px;
+            font-weight: bold;
+            text-align: center;
+            width: 100%;
+        }
+
+        /* --- Details Table/Rows --- */
+        .invoice-details {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+
+        /* --- Footer --- */
+        .taxes-tag {
+            font-size: 9px;
+            margin-top: 2px;
+            margin-bottom: 10px;
         }
 
         .footer {
-            margin-top: 30px;
+            text-align: center;
+            font-size: 14px;
             font-weight: bold;
-            font-size: large;
-        }
-
-        .item_name {
-            font-weight: bold;
-            text-transform: uppercase;
-            padding: 0;
-            margin: 0;
-        }
-
-        .zippee_logo {
-            width: 100px;
-        }
-
-        p {
-            margin: 5px 0;
+            padding-top: 10px;
+            padding-bottom: 5px;
         }
     </style>
 </head>
 
 <body>
     <div class="invoice-container">
-        <div class="section header">
-            <img class="zippee_logo" src="templates/zippee_logo.png" />
-            <a>www.zippee.delivery</a>
+
+        <!-- Header -->
+        <div class="header">
+            <img class="zippee_logo" src="{{ .zippeeLogo }}" alt="Zippee" />
+            <a href="https://www.zippee.delivery">www.zippee.delivery</a>
         </div>
 
+        <!-- Delivery & Payment -->
         <div class="section row">
-            <div class="column">
-                <div class="section-title">Delivery Address</div>
-                <p>
-                    <strong>{{ .customerName }}</strong><br />
-                    {{ .address }}<br />
-                    {{ .phone }}
-                </p>
+            <div class="col-left">
+                <div class="title">Delivery Address</div>
+                <div class="value-bold">{{ .customerName }}</div>
+                <div class="text-sm">{{ .address }}</div>
+                <div class="text-sm">{{ .phone }}</div>
             </div>
-            <div class="column text-center">
-                <div class="section-title">Payment Mode</div>
-                <p>
-                    <strong>{{ .paymentMode }}</strong><br />
-                    Collectible Amount - {{ .collectibleAmount }}<br />
-                    <!-- <strong>Routing Code</strong> - {{ .routingCode }} -->
-                    <!-- Routing code is not used at the moment. Will be used when mapping DIS routes -->
-                </p>
+            <div class="col-right">
+                <div class="title">Payment Mode</div>
+                <div class="value-bold">{{ .paymentMode }}</div>
+                <div class="text-sm">Collectible Amount - {{ .collectibleAmount }}</div>
             </div>
         </div>
 
-        <div class="section row barcode_section">
-            <div>{{ .zippeeAwb }}</div>
-            <div>
-                <img src="data:image/png;base64,{{ .barcodeZippeeawb }}">
+        <!-- Barcode 1 (AWB) -->
+        <div class="barcode-section">
+            <div class="barcode-left">
+                {{ .zippeeAwb }}
+            </div>
+            <div class="barcode-right">
+                <div class="barcode-inner">
+                    <img src="data:image/png;base64,{{ .barcodeZippeeawb }}" alt="AWB Barcode" />
+                    <div class="barcode-text">{{ .zippeeAwb }}</div>
+                </div>
             </div>
         </div>
-        <!-- 
-        <div class="section details-table">
-        <div class="details-table-row ">
-          <p class="item_name">Item Name (SKU)</p>
-          <p class="text-center item_name">QTY</p>
-        </div>
-        </div> 
-        -->
 
+        <!-- Invoice Details -->
         <div class="section">
-            <div class="row">
-                <strong>Invoice Date:</strong>
-                <div>{{ .invoiceDate }}</div>
+            <div class="invoice-details">
+                <span>Invoice Date:</span>
+                <span>{{ .invoiceDate }}</span>
             </div>
-            <div class="row">
-                <strong>Invoice Value:</strong>
-                <div>₹ {{ .invoiceValue }}</div>
-            </div>
-        </div>
-
-        <div class="section row barcode_section">
-            <div class="text-center">
-                <p>{{ .referenceCode }}</p>
-                <p>{{ .brandName }}</p>
-            </div>
-            <div>
-                <img src="data:image/png;base64,{{ .barcodeRefcode }}">
+            <div class="invoice-details">
+                <span>Invoice Value:</span>
+                <span>₹ {{ .invoiceValue }}</span>
             </div>
         </div>
 
+        <!-- Barcode 2 (Ref/Brand) -->
+        <div class="barcode-section">
+            <div class="barcode-left">
+                <div>{{ .referenceCode }}</div>
+                <div>{{ .brandName }}</div>
+            </div>
+            <div class="barcode-right">
+                <div class="barcode-inner">
+                    <img src="data:image/png;base64,{{ .barcodeRefcode }}" alt="Ref Barcode" />
+                    <div class="barcode-text">{{ .referenceCode }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shipper & Return Address -->
         <div class="section row">
-            <div class="column">
-                <div class="section-title">Shipper Address</div>
-                <p>
-                    <!-- <strong>Getsupp-BLR-Kalyan</strong><br /> -->
-                    {{ .shipperAddress }}
-                </p>
+            <div class="col-half">
+                <div class="title">Shipper Address</div>
+                <div class="text-sm">{{ .shipperAddress }}</div>
             </div>
-            <div class="column divider">
-                <div class="section-title">Return Address</div>
-                <p>
-                    <!-- <strong>Getsupp-BLR-Kalyan</strong><br /> -->
-                    {{ .returnAddress }}<br />
-                    Customer Support Contact - {{ .customerSupport }}
-                </p>
+            <div class="col-half">
+                <div class="title">Return Address</div>
+                <div class="text-sm">{{ .returnAddress }}</div>
+                <div class="text-sm">Customer Support Contact - {{ .customerSupport }}</div>
             </div>
         </div>
 
-        <div class="section dimensions-weight">
-            <div class="row"><strong>Dimensions (cms):</strong> {{ .dimensions }}</div>
-            <div class="row"><strong>Weight (grams):</strong> {{ .weight }}</div>
+        <!-- Dimensions, Weight & Footer -->
+        <div class="section">
+            <div class="invoice-details">
+                <span>Dimensions (cms):</span>
+                <span>{{ .dimensions }}</span>
+            </div>
+            <div class="invoice-details">
+                <span>Weight (grams):</span>
+                <span>{{ .weight }}</span>
+            </div>
             <div class="taxes-tag">inclusive of all taxes</div>
+
+            <div class="footer">Do not accept the Open / Tampered Packaging</div>
         </div>
 
-        <div class="footer">Do not accept the Open / Tampered Packaging</div>
     </div>
 </body>
 
