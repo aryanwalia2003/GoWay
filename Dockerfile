@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # Build the binary
-RUN go build -v -trimpath -o awb-gen main.go
+RUN go build -v -trimpath -ldflags="-s -w" -o awb-gen main.go
 
 # Run stage
 FROM debian:bookworm-slim
