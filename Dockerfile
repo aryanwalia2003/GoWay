@@ -13,13 +13,13 @@ COPY . .
 # Build the binary
 RUN go build -v -trimpath -ldflags="-s -w" -o awb-gen main.go
 
-# Run stage
-FROM debian:bookworm-slim
+# Run stage using Alpine for minimal footprint.
+FROM alpine:latest
+
+# Install CA certificates and timezone data.
+RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /app
-
-# Install CA certificates for any HTTPS requests
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Copy binary from builder
 COPY --from=builder /app/awb-gen /app/awb-gen

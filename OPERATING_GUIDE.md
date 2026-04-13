@@ -40,6 +40,7 @@ The primary tool for managing the service lifecycle.
 - **`scripts/monitor.sh`**: Runs in the background (or a side terminal) to sample container CPU/Memory and write to `stats.csv`.
 - **`scripts/analyze.sh`**: Processes logs to identify total requests, average/min/max latency, and overall throughput.
 - **`scripts/zombie_check.sh`**: Scans the container's process tree for orphaned rendering sub-processes that might be leaking resources.
+- **`scripts/check_size.sh`**: Quickly check the current size of all GoWay related Docker images.
 
 ---
 
