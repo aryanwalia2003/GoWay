@@ -3,9 +3,6 @@ FROM golang:1.25.3-bookworm AS builder
 
 WORKDIR /app
 
-# Enable CGO if needed, but since we use gofpdf/folio which are mostly pure Go,
-# we might be able to keep it disabled for a smaller/more portable binary.
-# However, let's keep it enabled if we want to be safe with any cgo dependencies.
 ENV CGO_ENABLED=0
 
 COPY go.mod go.sum ./
