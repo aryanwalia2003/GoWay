@@ -24,6 +24,11 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the GoWay HTTP microservice",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Initialize logger based on DEBUG env var
+		debug := os.Getenv("DEBUG") == "true"
+		logger.InitLogger(debug)
+		defer logger.Sync()
+
 		mux := http.NewServeMux()
 		// Set up handlers
 		genHandler := http.HandlerFunc(handler.HandleGenerate)
@@ -37,7 +42,12 @@ var serveCmd = &cobra.Command{
 		}
 		concurrencyMiddleware := middleware.NewConcurrency(concurrencyLimit)
 
-		folioAssembler := assembler.NewFolioAssembler("./templates")
+		templateDir := "./templates"
+		if val := os.Getenv("TEMPLATE_DIR"); val != "" {
+			templateDir = val
+		}
+
+		folioAssembler := assembler.NewFolioAssembler(templateDir)
 		healthH := handler.NewHealthHandler(folioAssembler)
 
 		mux.HandleFunc("/generate", middleware.Logging(authMiddleware(concurrencyMiddleware.Wrap(genHandler))).ServeHTTP)
@@ -48,10 +58,20 @@ var serveCmd = &cobra.Command{
 		latexHandler := handler.NewLaTeXHandler(folioAssembler)
 		mux.HandleFunc("/render/forward-shipping-label", middleware.Logging(authMiddleware(concurrencyMiddleware.Wrap(latexHandler))).ServeHTTP)
 
-		addr := fmt.Sprintf(":%d", port)
+		// Use PORT from env if not explicitly overridden by flag
+		addrPort := port
+		if !cmd.Flags().Changed("port") {
+			if val := os.Getenv("PORT"); val != "" {
+				if parsed, err := strconv.Atoi(val); err == nil {
+					addrPort = parsed
+				}
+			}
+		}
+
+		addr := fmt.Sprintf(":%d", addrPort)
 		srv := server.NewServer(addr, mux)
 
-		logger.Log.Info("Starting HTTP server", zap.String("addr", addr))
+		logger.Log.Info("Starting HTTP server", zap.String("addr", addr), zap.Bool("debug", debug))
 
 		go func() {
 			if err := srv.Start(); err != nil {

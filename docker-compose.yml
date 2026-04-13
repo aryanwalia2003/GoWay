@@ -4,6 +4,9 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - API_KEYS=my-secret-key
-      - CONCURRENCY_LIMIT=4
+      - API_KEYS=${API_KEYS}
+      - CONCURRENCY_LIMIT=${CONCURRENCY_LIMIT}
+      - DEBUG=${DEBUG}
+      - TEMPLATE_DIR=${TEMPLATE_DIR}
+      - PORT=${PORT}
     restart: unless-stopped
