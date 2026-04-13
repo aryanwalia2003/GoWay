@@ -1,0 +1,15 @@
+.git
+.gitignore
+awb-gen
+awb_gen.log
+server.log
+pprof/
+testdata/
+tectonic
+tectonic.tar.gz
+*.pdf
+*.png
+coverage.*
+.agents/
+.agent/
+.gemini/
