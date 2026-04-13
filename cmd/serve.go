@@ -37,9 +37,14 @@ var serveCmd = &cobra.Command{
 		}
 		concurrencyMiddleware := middleware.NewConcurrency(concurrencyLimit)
 
-		mux.HandleFunc("/generate", middleware.Logging(authMiddleware(concurrencyMiddleware.Wrap(genHandler))).ServeHTTP)
-
 		folioAssembler := assembler.NewFolioAssembler("./templates")
+		healthH := handler.NewHealthHandler(folioAssembler)
+
+		mux.HandleFunc("/generate", middleware.Logging(authMiddleware(concurrencyMiddleware.Wrap(genHandler))).ServeHTTP)
+		mux.HandleFunc("/healthz", healthH.HandleHealthz)
+		mux.HandleFunc("/livez", healthH.HandleLivez)
+		mux.HandleFunc("/readyz", healthH.HandleReadyz)
+
 		latexHandler := handler.NewLaTeXHandler(folioAssembler)
 		mux.HandleFunc("/render/forward-shipping-label", middleware.Logging(authMiddleware(concurrencyMiddleware.Wrap(latexHandler))).ServeHTTP)
 

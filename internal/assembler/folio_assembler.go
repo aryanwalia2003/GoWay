@@ -128,3 +128,18 @@ func (a *FolioAssembler) Assemble(ctx context.Context, templateID string, payloa
 
 	return doc.ToBytes()
 }
+
+// Ready checks if the assembler is functional.
+func (a *FolioAssembler) Ready() error {
+	info, err := os.Stat(a.templateDir)
+	if err != nil {
+		return fmt.Errorf("template directory error: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("template path is not a directory")
+	}
+	if a.cachedLogoURI == "" {
+		return fmt.Errorf("zippee logo missing or failed to load")
+	}
+	return nil
+}
