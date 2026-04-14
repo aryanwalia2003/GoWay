@@ -1,0 +1,183 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: stg
+  name: zorms-fastapi
+  labels:
+    app: zorms-service-svc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zorms-service
+  template:
+    metadata:
+      labels:
+        app: zorms-service
+    spec:
+      hostname: zorms-service
+      containers:
+        - name: zorms-service
+          image: 139868136390.dkr.ecr.ap-south-1.amazonaws.com/stg/zorms:v0.0.153
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: '512Mi'
+              cpu: '500m'
+            limits:
+              memory: '5120Mi'
+              cpu: '500m'
+          readinessProbe:
+            httpGet:
+              path: v1/health/
+              port: 8000
+            initialDelaySeconds: 60
+            timeoutSeconds: 10
+            periodSeconds: 30
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: v1/health/
+              port: 8000
+            initialDelaySeconds: 300
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: zorms-secrets
+          env:
+            - name: DEPLOYMENT_TYPE
+              value: service
+            - name: GOWAY_URL
+              value: "http://localhost:8080"
+            - name: GOWAY_API_KEY
+              value: "hahhaha" 
+
+        - name: goway
+          image: goway-alpine:latest 
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: '256Mi'
+              cpu: '100m'
+            limits:
+              memory: '1024Mi'
+              cpu: '1000m'
+          ports:
+            - name: goway-http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: API_KEYS
+              value: "hahhaha"
+            - name: PORT
+              value: "8080"
+            - name: CONCURRENCY_LIMIT
+              value: "8"
+            - name: DEBUG
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: livez
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: stg
+  name: zorms-fastapi-bgworker
+  labels:
+    app: zorms-bgworker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zorms-bgworker
+  template:
+    metadata:
+      labels:
+        app: zorms-bgworker
+    spec:
+      hostname: zorms-bgworker
+      containers:
+        - name: zorms-service
+          image: 139868136390.dkr.ecr.ap-south-1.amazonaws.com/stg/zorms:v0.0.153
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: '512Mi'
+              cpu: '500m'
+            limits:
+              memory: '5120Mi'
+              cpu: '500m'
+          envFrom:
+            - secretRef:
+                name: zorms-secrets
+          env:
+            - name: DEPLOYMENT_TYPE
+              value: worker
+            - name: GOWAY_URL
+              value: "http://localhost:8080"
+            - name: GOWAY_API_KEY
+              value: "hahhaha"
+
+        - name: goway
+          image: goway-alpine:latest 
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: '256Mi'
+              cpu: '100m'
+            limits:
+              memory: '1024Mi'
+              cpu: '1000m'
+          ports:
+            - name: goway-http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: API_KEYS
+              value: "hahhaha"
+            - name: PORT
+              value: "8080"
+            - name: CONCURRENCY_LIMIT
+              value: "8"
+          readinessProbe:
+            httpGet:
+              path: healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: stg
+  name: zorms-service-svc
+  labels:
+    svc: zorms-service
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+    - name: goway
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: zorms-service
